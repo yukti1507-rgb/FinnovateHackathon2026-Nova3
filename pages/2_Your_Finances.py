@@ -1,12 +1,12 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Your Profile",
+    page_title="Your Finances",
     page_icon="👤",
     layout="wide"
 )
 
-st.title("Your Profile")
+st.title("Your Finances")
 st.caption("Edit your details anytime — your dashboard updates automatically.")
 
 # ----------------------------------------------------------------
