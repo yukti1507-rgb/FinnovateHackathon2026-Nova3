@@ -1,0 +1,13 @@
+import sqlite3
+
+def get_connection():
+    conn = sqlite3.connect('DATA/users.db', check_same_thread=False)
+    return conn
+
+def delete_table(conn, table_name):
+    cur = conn.cursor()
+    sql = f'DROP TABLE IF EXISTS "{table_name}"'
+    cur.execute(sql)
+    conn.commit()
+    print(f"Table {table_name} deleted successfully.")
+#just in case you add the wrong table
