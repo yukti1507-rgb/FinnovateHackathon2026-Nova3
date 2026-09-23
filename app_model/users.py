@@ -166,7 +166,7 @@ def record_blocked_login(conn, name):
         action="LOGIN_BLOCKED",
         description="Login attempt blocked because the account is locked"
     )
-    
+
 #checks if the username is unique
 def is_username_available(conn, name):
     """Checks if the username already exists in the db"""
@@ -382,29 +382,51 @@ def add_audit_log(conn, user_id, admin_id, action, description):
     conn.commit()
 
 
-def get_audit_logs(conn, days=7):
+def get_audit_logs(conn, days=None):
     cur = conn.cursor()
 
-    sql = '''
-        SELECT
-            a.id,
-            a.user_id,
-            a.admin_id,
-            a.action,
-            a.description,
-            a.timestamp,
-            u.username AS affected_user,
-            admin.username AS administrator
-        FROM audit_log a
-        LEFT JOIN users_login u
-            ON a.user_id = u.id
-        LEFT JOIN users_login admin
-            ON a.admin_id = admin.id
-        WHERE a.timestamp >= datetime('now', ?)
-        ORDER BY a.timestamp DESC
-    '''
+    if days is None:
+        sql = '''
+            SELECT
+                a.id,
+                a.user_id,
+                a.admin_id,
+                a.action,
+                a.description,
+                a.timestamp,
+                u.username AS affected_user,
+                admin.username AS administrator
+            FROM audit_log a
+            LEFT JOIN users_login u
+                ON a.user_id = u.id
+            LEFT JOIN users_login admin
+                ON a.admin_id = admin.id
+            ORDER BY a.timestamp DESC
+        '''
 
-    cur.execute(sql, (f'-{days} days',))
+        cur.execute(sql)
+
+    else:
+        sql = '''
+            SELECT
+                a.id,
+                a.user_id,
+                a.admin_id,
+                a.action,
+                a.description,
+                a.timestamp,
+                u.username AS affected_user,
+                admin.username AS administrator
+            FROM audit_log a
+            LEFT JOIN users_login u
+                ON a.user_id = u.id
+            LEFT JOIN users_login admin
+                ON a.admin_id = admin.id
+            WHERE a.timestamp >= datetime('now', ?)
+            ORDER BY a.timestamp DESC
+        '''
+
+        cur.execute(sql, (f'-{days} days',))
 
     return cur.fetchall()
 
@@ -477,3 +499,49 @@ def unlock_user(conn, user_id, admin_id):
     conn.commit()
 
     return True
+
+def get_user_security_info(conn, user_id):
+    cur = conn.cursor()
+
+    sql = '''
+        SELECT
+            u.id,
+            u.username,
+            p.email,
+            p.role,
+            u.failed_attempts,
+            u.locked,
+            u.lockout_count,
+            u.last_login_time
+        FROM users_login u
+        LEFT JOIN user_profile p
+            ON u.id = p.user_id
+        WHERE u.id = ?
+    '''
+
+    cur.execute(sql, (user_id,))
+
+    return cur.fetchone()
+
+def get_all_users_with_security_info(conn):
+    cur = conn.cursor()
+
+    sql = '''
+        SELECT
+            u.id,
+            u.username,
+            p.email,
+            p.role,
+            u.failed_attempts,
+            u.locked,
+            u.lockout_count,
+            u.last_login_time
+        FROM users_login u
+        LEFT JOIN user_profile p
+            ON u.id = p.user_id
+        ORDER BY u.username
+    '''
+
+    cur.execute(sql)
+
+    return cur.fetchall()
