@@ -1,6 +1,9 @@
 import streamlit as st
 import string
 
+from app_model.db import get_connection
+from app_model.schema import create_audit_table
+
 def profile_icon():
     # Top bar layout: left empty, right for profile
     top_col1, top_col2 = st.columns([9, 1])  # adjust ratio for spacing

@@ -1,22 +1,33 @@
 import streamlit as st
-from main import profile_icon
+from calculations.language import show_language_picker, t
 
 st.set_page_config(
     page_title="Your Finances",
-    page_icon="💰",
+    page_icon="👤",
     layout="wide"
 )
 
-col1, col2 = st.columns([1, 3])
-with col1:
-    st.title("Tell us about your finances")
-with col2:
-    profile_icon()
+show_language_picker()
 
-st.caption(
-    "Fill in what applies to you — leave anything at 0 if it doesn't apply. "
-    "Everything here feeds into your projection on the Dashboard."
-)
+st.title(t("Your Finances"))
+st.caption(t("Edit your details anytime — your dashboard updates automatically."))
+
+if "current_savings" not in st.session_state:
+    st.session_state["current_savings"] = 0.0
+if "monthly_savings" not in st.session_state:
+    st.session_state["monthly_savings"] = 0.0
+if "savings_rate" not in st.session_state:
+    st.session_state["savings_rate"] = 3.0
+if "goals" not in st.session_state:
+    st.session_state["goals"] = []
+if "loans" not in st.session_state:
+    st.session_state["loans"] = []
+if "subscriptions" not in st.session_state:
+    st.session_state["subscriptions"] = []
+if "variable_expenses" not in st.session_state:
+    st.session_state["variable_expenses"] = []
+if "other_fixed_expenses" not in st.session_state:
+    st.session_state["other_fixed_expenses"] = []
 
 st.divider()
 
@@ -29,93 +40,261 @@ income = st.number_input(
 
 st.divider()
 
-# ---------- Fixed / recurring expenses ----------
+# ---------- Reusable row helper ----------
+def expense_row(label, key, step=25.0, default_is_need=True, help_text=None):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        amount = st.number_input(label, min_value=0.0, step=step, key=f"{key}_amount", help=help_text)
+    with col2:
+        st.write("")
+        is_need = st.toggle("Need", value=default_is_need, key=f"{key}_need")
+    return amount, is_need
+
+# ---------- Fixed single-item expenses ----------
 st.subheader("🧾 Fixed Monthly Expenses")
-st.caption("Costs that stay roughly the same every month.")
+st.caption("Costs everyone typically has one of.")
 
-fixed_defaults = {
-    "fixed_rent": 0.0,
-    "fixed_loan_repayment": 0.0,
-    "fixed_insurance": 0.0,
-    "fixed_utilities": 0.0,
-    "fixed_subscriptions": 0.0,
-    "fixed_school_childcare": 0.0,
-    "fixed_transport": 0.0,
-    "fixed_other": 0.0,
-}
-for key, val in fixed_defaults.items():
-    st.session_state.setdefault(key, val)
+rent, rent_is_need = expense_row("Rent / mortgage", "fixed_rent", step=50.0)
+insurance, insurance_is_need = expense_row("Insurance (health, car, life)", "fixed_insurance")
+utilities, utilities_is_need = expense_row("Utilities (electricity, water, phone, internet)", "fixed_utilities")
+school_childcare, school_childcare_is_need = expense_row("School / childcare fees", "fixed_school_childcare", step=50.0)
+transport_fixed, transport_fixed_is_need = expense_row("Transport pass / lease (bus pass, car lease)", "fixed_transport")
 
-fcol1, fcol2 = st.columns(2)
-with fcol1:
-    st.markdown("**🏠 Housing & Loans**")
-    rent = st.number_input("Rent / mortgage", min_value=0.0, step=50.0, key="fixed_rent")
-    loan_repayment = st.number_input(
-        "Loan repayments (car, student, personal)", min_value=0.0, step=50.0,
-        key="fixed_loan_repayment",
-        help="If you also fill in the Loan section further down, only enter the repayment here once — don't double it up."
-    )
-    insurance = st.number_input("Insurance (health, car, life)", min_value=0.0, step=25.0, key="fixed_insurance")
-
-with fcol2:
-    st.markdown("**📺 Recurring Commitments**")
-    utilities = st.number_input(
-        "Utilities (electricity, water, phone, internet)", min_value=0.0, step=25.0, key="fixed_utilities"
-    )
-    subscriptions = st.number_input(
-        "Subscriptions (streaming, gym, software)", min_value=0.0, step=10.0, key="fixed_subscriptions"
-    )
-    school_childcare = st.number_input(
-        "School / childcare fees", min_value=0.0, step=50.0, key="fixed_school_childcare"
-    )
-    transport_fixed = st.number_input(
-        "Transport pass / lease (bus pass, car lease)", min_value=0.0, step=25.0, key="fixed_transport"
-    )
-
-other_fixed = st.number_input(
-    "Other fixed costs", min_value=0.0, step=25.0, key="fixed_other",
-    help="Any other recurring cost that's the same amount every month."
-)
-
-fixed_total = (
-    rent + loan_repayment + insurance + utilities
-    + subscriptions + school_childcare + transport_fixed + other_fixed
-)
-st.metric("Total fixed expenses", f"{fixed_total:,.0f}")
+single_fixed_total = rent + insurance + utilities + school_childcare + transport_fixed
 
 st.divider()
 
-# ---------- Variable / day-to-day expenses ----------
+# ---------- Loans (list) ----------
+# ---------- Loans (list) ----------
+st.subheader("🏦 Loans")
+st.caption("Add each loan you're currently repaying — e.g. Car, House.")
+
+for i, loan in enumerate(st.session_state["loans"]):
+    with st.expander(f"{loan['name']} — Rs {loan['payment']}/month"):
+        new_name = st.text_input("Loan name", value=loan["name"], key=f"loan_name_{i}")
+        new_principal = st.number_input(
+            "Amount still owed (Rs)", value=loan["principal"], min_value=0.0, step=500.0, key=f"loan_principal_{i}"
+        )
+        new_rate = st.slider(
+            "Interest rate (%)", 0.0, 20.0, value=loan.get("rate", 9.0), step=0.1, key=f"loan_rate_{i}"
+        )
+        new_payment = st.number_input(
+            "Monthly payment (Rs)", value=loan["payment"], min_value=0.0, step=50.0, key=f"loan_payment_{i}"
+        )
+
+        if new_payment <= 0:
+            st.warning("⚠️ Payment must be greater than 0 — this loan won't be included until fixed.")
+        else:
+            st.session_state["loans"][i] = {
+                "name": new_name, "principal": new_principal, "rate": new_rate, "payment": new_payment
+            }
+
+        if st.button("🗑️ Remove this loan", key=f"remove_loan_{i}"):
+            st.session_state["loans"].pop(i)
+            st.rerun()
+
+with st.expander("➕ Add a loan"):
+    new_loan_name = st.text_input("What's this loan for?", placeholder="e.g. Car, House", key="new_loan_name")
+    new_loan_principal = st.number_input("Amount still owed (Rs)", min_value=0.0, step=500.0, key="new_loan_principal")
+    new_loan_rate = st.slider("Interest rate (%)", 0.0, 20.0, 9.0, step=0.1, key="new_loan_rate")
+    new_loan_payment = st.number_input("Monthly payment (Rs)", min_value=0.0, step=50.0, key="new_loan_payment")
+
+    if st.button("Add loan", type="primary"):
+        if new_loan_name.strip() == "":
+            st.error("Please name this loan.")
+        elif new_loan_payment <= 0:
+            st.error("Monthly payment must be greater than 0.")
+        else:
+            st.session_state["loans"].append({
+                "name": new_loan_name, "principal": new_loan_principal,
+                "rate": new_loan_rate, "payment": new_loan_payment
+            })
+            st.success(f"Added '{new_loan_name}'!")
+            st.rerun()
+
+loans_total = sum(loan["payment"] for loan in st.session_state["loans"])
+st.metric("Total loan repayments", f"{loans_total:,.0f}")
+st.divider()
+
+# ---------- Subscriptions (list) ----------
+# ---------- Subscriptions (list) ----------
+st.subheader("📺 Subscriptions")
+st.caption("Add each subscription — e.g. Netflix, Gym.")
+
+for i, sub in enumerate(st.session_state["subscriptions"]):
+    with st.expander(f"{sub['name']} — Rs {sub['amount']}"):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_name = st.text_input("Subscription name", value=sub["name"], key=f"sub_name_{i}")
+            new_amount = st.number_input(
+                "Amount (Rs)", value=sub["amount"], min_value=0.0, step=10.0, key=f"sub_amount_{i}"
+            )
+        with col2:
+            st.write("")
+            new_is_need = st.toggle("Need", value=sub["type"] == "Need", key=f"sub_need_{i}")
+
+        if new_amount <= 0:
+            st.warning("⚠️ Amount must be greater than 0 — this won't be included until fixed.")
+        else:
+            st.session_state["subscriptions"][i] = {
+                "name": new_name, "amount": new_amount, "type": "Need" if new_is_need else "Want"
+            }
+
+        if st.button("🗑️ Remove", key=f"remove_sub_{i}"):
+            st.session_state["subscriptions"].pop(i)
+            st.rerun()
+
+with st.expander("➕ Add a subscription"):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_sub_name = st.text_input("What's this subscription?", placeholder="e.g. Netflix, Gym", key="new_sub_name")
+        new_sub_amount = st.number_input("Amount (Rs)", min_value=0.0, step=10.0, key="new_sub_amount")
+    with col2:
+        st.write("")
+        new_sub_is_need = st.toggle("Need", value=False, key="new_sub_need")
+
+    if st.button("Add subscription", type="primary"):
+        if new_sub_name.strip() == "":
+            st.error("Please name this subscription.")
+        elif new_sub_amount <= 0:
+            st.error("Amount must be greater than 0.")
+        else:
+            st.session_state["subscriptions"].append({
+                "name": new_sub_name, "amount": new_sub_amount, "type": "Need" if new_sub_is_need else "Want"
+            })
+            st.success(f"Added '{new_sub_name}'!")
+            st.rerun()
+
+subscriptions_total = sum(sub["amount"] for sub in st.session_state["subscriptions"])
+st.metric("Total subscriptions", f"{subscriptions_total:,.0f}")
+
+st.divider()
+
+# ---------- Other fixed costs (list) ----------
+st.markdown("**Other fixed costs**")
+st.caption("Any other recurring cost that's the same amount every month.")
+
+for i, expense in enumerate(st.session_state["other_fixed_expenses"]):
+    with st.expander(f"{expense['name']} — Rs {expense['amount']}"):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_name = st.text_input("Description", value=expense["name"], key=f"other_fixed_name_{i}")
+            new_amount = st.number_input(
+                "Amount (Rs)", value=expense["amount"], min_value=0.0, step=25.0, key=f"other_fixed_amount_{i}"
+            )
+        with col2:
+            st.write("")
+            new_is_need = st.toggle("Need", value=expense["type"] == "Need", key=f"other_fixed_need_{i}")
+
+        if new_amount <= 0:
+            st.warning("⚠️ Amount must be greater than 0 — this won't be included until fixed.")
+        else:
+            st.session_state["other_fixed_expenses"][i] = {
+                "name": new_name, "amount": new_amount, "type": "Need" if new_is_need else "Want"
+            }
+
+        if st.button("🗑️ Remove", key=f"remove_other_fixed_{i}"):
+            st.session_state["other_fixed_expenses"].pop(i)
+            st.rerun()
+
+with st.expander("➕ Add another fixed cost"):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_of_name = st.text_input("What's this cost?", key="new_other_fixed_name")
+        new_of_amount = st.number_input("Amount (Rs)", min_value=0.0, step=25.0, key="new_other_fixed_amount")
+    with col2:
+        st.write("")
+        new_of_is_need = st.toggle("Need", value=True, key="new_other_fixed_need")
+
+    if st.button("Add cost", type="primary"):
+        if new_of_name.strip() == "":
+            st.error("Please describe this cost.")
+        elif new_of_amount <= 0:
+            st.error("Amount must be greater than 0.")
+        else:
+            st.session_state["other_fixed_expenses"].append({
+                "name": new_of_name, "amount": new_of_amount, "type": "Need" if new_of_is_need else "Want"
+            })
+            st.success(f"Added '{new_of_name}'!")
+            st.rerun()
+
+other_fixed_total = sum(e["amount"] for e in st.session_state["other_fixed_expenses"])
+
+fixed_total = single_fixed_total + loans_total + subscriptions_total + other_fixed_total
+
+st.divider()
+
+# ---------- Variable / day-to-day expenses (list) ----------
 st.subheader("🛒 Day-to-Day & Variable Expenses")
-st.caption("Costs that change from month to month.")
+st.caption("Add each variable cost individually — e.g. 'Market' 2000, 'Takeout' 300.")
 
-st.markdown("**Food & groceries**")
-food_type = st.selectbox(
-    "Is this spending a need or a want?",
-    ["Need (e.g. groceries, home cooking)", "Want (e.g. takeout, snacks, treats)"],
-    key="food_type"
-)
-food = st.number_input(
-    "How much do you spend on this per month?", min_value=0.0, step=50.0, key="food_amount"
-)
-food_is_need = food_type.startswith("Need")
+for i, expense in enumerate(st.session_state["variable_expenses"]):
+    with st.expander(f"{expense['name']} — Rs {expense['amount']}"):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_name = st.text_input("Description", value=expense["name"], key=f"var_name_{i}")
+            new_amount = st.number_input(
+                "Amount (Rs)", value=expense["amount"], min_value=0.0, step=50.0, key=f"var_amount_{i}"
+            )
+        with col2:
+            st.write("")
+            new_is_need = st.toggle("Need", value=expense["type"] == "Need", key=f"var_need_{i}")
 
-extra_transport = st.number_input(
-    "Other transport (fuel, taxis, occasional rides)", min_value=0.0, step=25.0,
-    key="variable_transport",
-    help="For day-to-day fuel or ride costs — a bus pass or car lease is captured above under Fixed Expenses."
-)
-other_variable = st.number_input(
-    "Other variable expenses", min_value=0.0, step=50.0, key="variable_other",
-    help="Anything not covered above — e.g. clothing, gifts, medical, pet costs."
-)
+        if new_amount <= 0:
+            st.warning("⚠️ Amount must be greater than 0 — this won't be included until fixed.")
+        else:
+            st.session_state["variable_expenses"][i] = {
+                "name": new_name, "amount": new_amount, "type": "Need" if new_is_need else "Want"
+            }
 
-variable_total = food + extra_transport + other_variable
+        if st.button("🗑️ Remove", key=f"remove_var_{i}"):
+            st.session_state["variable_expenses"].pop(i)
+            st.rerun()
+
+with st.expander("➕ Add a variable expense"):
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_var_name = st.text_input("What was it for?", key="new_var_name_input", placeholder="e.g. Market, Takeout, Fuel")
+        new_var_amount = st.number_input("Amount (Rs)", min_value=0.0, step=50.0, key="new_var_amount_input")
+    with col2:
+        st.write("")
+        new_var_is_need = st.toggle("Need", value=False, key="new_var_need_input")
+
+    if st.button("Add expense", type="primary"):
+        if new_var_name.strip() == "":
+            st.error("Please describe this expense.")
+        elif new_var_amount <= 0:
+            st.error("Amount must be greater than 0.")
+        else:
+            st.session_state["variable_expenses"].append({
+                "name": new_var_name, "amount": new_var_amount, "type": "Need" if new_var_is_need else "Want"
+            })
+            st.success(f"Added '{new_var_name}'!")
+            st.rerun()
+
+variable_total = sum(e["amount"] for e in st.session_state["variable_expenses"])
 st.metric("Total variable expenses", f"{variable_total:,.0f}")
 
 st.divider()
 
 expenses = fixed_total + variable_total
+st.session_state["income"] = income
+st.session_state["expenses"] = expenses
+
+fixed_categories = [
+    {"name": "Rent/Mortgage", "amount": rent, "type": "Need" if rent_is_need else "Want"},
+    {"name": "Insurance", "amount": insurance, "type": "Need" if insurance_is_need else "Want"},
+    {"name": "Utilities", "amount": utilities, "type": "Need" if utilities_is_need else "Want"},
+    {"name": "School/childcare", "amount": school_childcare, "type": "Need" if school_childcare_is_need else "Want"},
+    {"name": "Transport (fixed)", "amount": transport_fixed, "type": "Need" if transport_fixed_is_need else "Want"},
+] + st.session_state["other_fixed_expenses"]
+
+loan_categories = [{"name": f"Loan: {l['name']}", "amount": l["payment"], "type": "Need"} for l in st.session_state["loans"]]
+subscription_categories = [{"name": s["name"], "amount": s["amount"], "type": s["type"]} for s in st.session_state["subscriptions"]]
+
+st.session_state["expense_categories"] = (
+    fixed_categories + loan_categories + subscription_categories + st.session_state["variable_expenses"]
+)
 
 col_e1, col_e2 = st.columns(2)
 with col_e1:
@@ -129,91 +308,82 @@ if income > 0 and expenses > income:
 
 st.divider()
 
-# ---------- Savings ----------
-st.subheader("🏦 Savings")
-current_savings = st.number_input(
-    "How much do you currently have saved?", min_value=0.0, step=100.0, key="current_savings_input"
-)
-monthly_savings = st.number_input(
-    "How much would you like to save each month?", min_value=0.0, step=100.0, key="monthly_savings_input"
-)
-savings_rate = st.slider(
-    "Expected annual interest rate on your savings (%)", 0.0, 10.0, 3.0, step=0.1,
-    help="The average return your savings account or investment earns per year.",
-    key="savings_rate_input"
+st.subheader(t("🏦 Savings"))
+
+st.session_state["current_savings"] = st.number_input(
+    t("How much do you currently have saved?"),
+    min_value=0.0, step=100.0,
+    value=st.session_state["current_savings"]
 )
 
-if monthly_savings > available:
+available = income - expenses
+
+if not st.session_state.get("monthly_savings_touched", False) and available > 0:
+    st.session_state["monthly_savings"] = available
+
+st.session_state["monthly_savings"] = st.number_input(
+    t("How much would you like to save each month?"),
+    min_value=0.0, step=100.0,
+    value=st.session_state["monthly_savings"],
+    help=f"You have about Rs {available:,.0f} available after expenses."
+)
+st.session_state["monthly_savings_touched"] = True
+
+if st.session_state["monthly_savings"] > available:
     st.warning(
-        f"⚠️ You're planning to save {monthly_savings:,.0f} but only have {available:,.0f} available after expenses."
+        f"⚠️ You've set your savings target to Rs {st.session_state['monthly_savings']:,.0f}/month, "
+        f"but only Rs {available:,.0f} is actually available after your expenses. "
+        f"Your goal calculations may be based on an unrealistic number."
     )
 
-st.divider()
-
-# ---------- Loan ----------
-st.subheader("💳 Loan")
-st.caption(
-    "If you're repaying a loan and want it modeled in your projection, fill this in. "
-    "This is separate from the repayment amount you entered above — that's for your monthly budget, this is for the payoff timeline."
+st.session_state["savings_rate"] = st.slider(
+    t("Expected annual interest rate on your savings (%)"),
+    0.0, 10.0,
+    value=st.session_state["savings_rate"],
+    step=0.1
 )
-has_loan = st.radio(
-    "Do you have a loan you're currently repaying?", ["No", "Yes"], horizontal=True, key="has_loan_input"
-)
-
-loan_amount = 0.0
-loan_rate = 0.0
-loan_term_years = 0
-
-if has_loan == "Yes":
-    loan_amount = st.number_input("How much did you borrow?", min_value=0.0, step=500.0, key="loan_amount_input")
-    loan_rate = st.slider("What's the interest rate (%)?", 0.0, 20.0, 9.0, step=0.1, key="loan_rate_input")
-    loan_term_years = st.number_input(
-        "Over how many years are you repaying it?", min_value=1, max_value=30, step=1, key="loan_term_input"
-    )
 
 st.divider()
 
-# ---------- Savings Goal ----------
-st.subheader("🎯 Savings Goal")
-has_goal = st.radio(
-    "Are you saving toward a specific goal?", ["No", "Yes"], horizontal=True, key="has_goal_input"
-)
+st.subheader(t("🎯 Your Goals"))
 
-goal_name = ""
-goal_amount = 0.0
-goal_years = 0
+for i, goal in enumerate(st.session_state["goals"]):
+    with st.expander(f"{goal['name']} — Rs {goal['amount']}"):
+        new_name = st.text_input(t("Goal name"), value=goal["name"], key=f"goal_name_{i}")
+        new_amount = st.number_input(
+            t("Amount needed (Rs)"), value=goal["amount"], min_value=0.0, step=500.0, key=f"goal_amount_{i}"
+        )
+        new_years = st.number_input(
+            t("Years to achieve"), value=goal["years"], min_value=1, max_value=30, step=1, key=f"goal_years_{i}"
+        )
 
-if has_goal == "Yes":
-    goal_name = st.text_input("What are you saving for? (e.g. Car, Emergency fund, Trip)", key="goal_name_input")
-    goal_amount = st.number_input("How much do you need?", min_value=0.0, step=500.0, key="goal_amount_input")
-    goal_years = st.number_input("By when? (years from now)", min_value=1, max_value=30, step=1, key="goal_years_input")
+        if new_amount <= 0:
+            st.warning(t("⚠️ Amount must be greater than 0 — this goal won't be included in calculations until fixed."))
+        else:
+            st.session_state["goals"][i] = {"name": new_name, "amount": new_amount, "years": new_years}
+
+        if st.button(t("🗑️ Remove this goal"), key=f"remove_goal_{i}"):
+            st.session_state["goals"].pop(i)
+            st.rerun()
+
+st.write("")
+
+with st.expander(t("➕ Add a new goal")):
+    new_goal_name = st.text_input(t("What are you saving for?"), key="new_goal_name_input")
+    new_goal_amount = st.number_input(t("How much do you need? (Rs)"), min_value=0.0, step=500.0, key="new_goal_amount_input")
+    new_goal_years = st.number_input(t("By when? (years from now)"), min_value=1, max_value=30, step=1, key="new_goal_years_input")
+
+    if st.button(t("Add goal"), type="primary"):
+        if new_goal_name.strip() == "":
+            st.error(t("Please give your goal a name."))
+        elif new_goal_amount <= 0:
+            st.error(t("Goal amount must be greater than 0."))
+        else:
+            st.session_state["goals"].append({"name": new_goal_name, "amount": new_goal_amount, "years": new_goal_years})
+            st.success(f"{t('Added')} '{new_goal_name}' {t('to your goals!')}")
+            st.rerun()
 
 st.divider()
 
-# ---------- Run simulation ----------
-if st.button("Run my simulation", type="primary"):
-    st.session_state["income"] = income
-
-    st.session_state["fixed_expenses"] = fixed_total
-    st.session_state["variable_expenses"] = variable_total
-    st.session_state["food"] = food
-    st.session_state["food_is_need"] = food_is_need
-    st.session_state["expenses"] = expenses
-
-    st.session_state["current_savings"] = current_savings
-    st.session_state["monthly_savings"] = monthly_savings
-    st.session_state["savings_rate"] = savings_rate
-
-    st.session_state["has_loan"] = has_loan == "Yes"
-    st.session_state["loan_amount"] = loan_amount
-    st.session_state["loan_rate"] = loan_rate
-    st.session_state["loan_term_years"] = loan_term_years
-
-    st.session_state["has_goal"] = has_goal == "Yes"
-    st.session_state["goal_name"] = goal_name
-    st.session_state["goal_amount"] = goal_amount
-    st.session_state["goal_years"] = goal_years
-
-    st.success("Got it! Heading to Dashboard to see your projection.")
+if st.button(t("📊 View my Dashboard"), type="primary"):
     st.switch_page("pages/3_Dashboard.py")
-

@@ -4,9 +4,11 @@ from registration_and_login.hashing import generate_hash, is_valid_hash
 from app_model.db import get_connection
 from main import password_requirements
 #users have not been decided yet - do necessary changes when decided
-from app_model.users import set_token, get_user_by_token, reset_password, is_username_available, add_user, update_login_attempts, get_user, reset_login, is_email_available, get_email, get_role
+from app_model.users import record_blocked_login, record_successful_login, set_token, get_user_by_token, reset_password, is_username_available, add_user, update_login_attempts, get_user, reset_login, is_email_available, get_email, get_role
 
-from app_model.schema import create_user_table, create_user_profile,alter_users_login_table
+from calculations.language import show_language_picker, t
+
+from app_model.schema import create_audit_table, create_user_table, create_user_profile,alter_users_login_table
 from registration_and_login.send_email_to_user import send_resetpass_email, OTP_initialisation, OTP_verification
 
 #very ugly in coursework - needs improvement
@@ -17,6 +19,7 @@ import re
 conn = get_connection()
 create_user_table(conn)
 create_user_profile(conn)
+create_audit_table(conn)
 alter_users_login_table(conn)
 
 #theme
@@ -27,6 +30,8 @@ st.set_page_config(
     page_icon = "💡",
     layout = "wide"
     )
+
+show_language_picker()
 
 # --- minor CSS polish for the auth panel ---
 st.markdown(
@@ -105,32 +110,51 @@ with auth_col:
                 user_login = get_user(conn, login_username)
 
                 if user_login is None:
-                    #if the person hasnt entered either the login or password
+                    # Username does not exist
                     st.error("Incorrect login. Please try again.")
                     st.session_state['Logged_in'] = False
+
                 else:
-                    id,user_name, user_hash, failed_attempts, locked = user_login
+                    id, user_name, user_hash, failed_attempts, locked = user_login
+
                     if locked:
-                        #checks if the users account has already been locked due to too many incorrect passwords
-                        st.error("Too many failed attempts. Please use 'forgot password' to reset password.")
+                        # Account was already locked
+                        record_blocked_login(conn, login_username)
+
+                        st.error(
+                            "Too many failed attempts. Please use 'forgot password' to reset password."
+                        )
+
                         st.session_state['Logged_in'] = False
-                    elif login_username == user_name and is_valid_hash(login_password, user_hash):
-                        #if the user is not locked and has the correct username or paswword they enter this part
-                        reset_login(conn, login_username)
+
+                    elif login_username == user_name and is_valid_hash(
+                        login_password,
+                        user_hash
+                    ):
+
                         email = get_email(conn, login_username)
+
                         with st.spinner("Sending verification code to your email..."):
-                            #sending the otp to the user
-                            sending_OTP =  OTP_initialisation(email)
+                            sending_OTP = OTP_initialisation(email)
+
                         if sending_OTP:
                             st.session_state['awaiting_otp'] = True
                             st.session_state['pending_username'] = user_name
                             st.rerun()
+
                         else:
-                            st.error("Could not send verification email. Please try again.")   
+                            st.error(
+                                "Could not send verification email. Please try again."
+                            )
+
                     else:
-                        st.error("Incorrect username or password. Please try again")
-                        #resets login attempts if the user is able to enter the correct login within 3 tries so that the next time they still have 3 chances to guess the login
+                        # Incorrect password
+                        st.error(
+                            "Incorrect username or password. Please try again."
+                        )
+
                         update_login_attempts(conn, login_username)
+
                         st.session_state['Logged_in'] = False
 
     if st.session_state.get('awaiting_otp'):
@@ -147,18 +171,31 @@ with auth_col:
                     #calls function which checks if it is the right otp
                     ok, msg = OTP_verification(code_input)
                 if ok:
+                    username = st.session_state["pending_username"]
+
+                    # Record successful authentication
+                    record_successful_login(conn, username)
+
                     st.session_state['Logged_in'] = True
-                    st.session_state['username'] = st.session_state["pending_username"]
-                    #checks if an admin has logged in
+                    st.session_state['username'] = username
+
+                    # checks if an admin has logged in
                     role = get_role(conn, st.session_state['username'])
+
                     if role == "Admin":
                         st.session_state['Admin'] = True
                     else:
                         st.session_state['Admin'] = False
+
                     st.session_state.pop('awaiting_otp', None)
+
                     st.success("Logged in successfully")
+
                     time.sleep(2)
-                    st.switch_page("pages/2_Cyber_Incident_Dashboard.py")
+
+                    st.switch_page(
+                        "pages/2_Cyber_Incident_Dashboard.py"
+                    )
                 else:
                     st.error(msg)
                 st.stop()
