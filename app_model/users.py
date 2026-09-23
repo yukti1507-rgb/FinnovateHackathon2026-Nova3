@@ -545,3 +545,19 @@ def get_all_users_with_security_info(conn):
     cur.execute(sql)
 
     return cur.fetchall()
+
+def search_usernames(conn, search_term, limit=10):
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, username
+        FROM users_login
+        WHERE username LIKE ?
+        ORDER BY username
+        LIMIT ?
+        """,
+        (f"%{search_term}%", limit)
+    )
+
+    return cursor.fetchall()
