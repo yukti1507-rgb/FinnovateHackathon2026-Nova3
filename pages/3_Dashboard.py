@@ -78,11 +78,11 @@ if "goals_status" in results:
                 adjusted_goals,
                 results["actual_months_per_goal"],
                 results["required_monthly_per_goal"],
-                st.session_state["monthly_savings"]
+                st.session_state["monthly_savings"],
+                dict(st.session_state),
+                results["inflation_adjusted_target_per_goal"]
             )
-        st.info(explanation)  # already in the right language via the AI prompt itself
-
-
+        st.info(explanation)
 st.divider()
 
 st.subheader(t("📈 Your Savings Projection"))

@@ -114,7 +114,41 @@ def inflating_target_over_time(target_amount, deadline_months, inflation_rate=0.
         for month in range(1, deadline_months + 1)
     ]
 
+def find_best_cuts(user_data, goals_status, cut_percent=0.5):
+    """
+    Tests cutting each 'want' expense by cut_percent, and finds which
+    cut helps a goal the most. Pure calculation — AI only narrates this.
+    """
+    from calculations.projections import run_full_simulation
 
+    wants = [e for e in user_data.get("expense_categories", []) if e["type"] == "Want" and e["amount"] > 0]
+    suggestions = []
+
+    for want in wants:
+        cut_amount = want["amount"] * cut_percent
+
+        adjusted_data = dict(user_data)
+        adjusted_data["monthly_savings"] = user_data["monthly_savings"] + cut_amount
+
+        adjusted_results = run_full_simulation(adjusted_data, months=60)
+        adjusted_goals = adjusted_results.get("goals_status", [])
+
+        for goal in goals_status:
+            old_month = goal["month_reached"]
+            matching = next((g for g in adjusted_goals if g["name"] == goal["name"]), None)
+            new_month = matching["month_reached"] if matching else None
+
+            if old_month and new_month and new_month < old_month:
+                suggestions.append({
+                    "expense_name": want["name"],
+                    "expense_amount": want["amount"],
+                    "cut_amount": round(cut_amount, 2),
+                    "goal_name": goal["name"],
+                    "months_saved": old_month - new_month
+                })
+
+    suggestions.sort(key=lambda s: s["months_saved"], reverse=True)
+    return suggestions
 
 
 

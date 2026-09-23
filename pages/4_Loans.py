@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from calculations.loans import months_to_repay, amortisation_schedule, calculate_monthly_payment
 from calculations.loan_prediction import predict_max_loan, plan_goal_with_loan
 from calculations.goals import calculate_goal_gap
@@ -18,52 +19,60 @@ st.title(t("💳 Loans"))
 tab1, tab2 = st.tabs([t("I already have a loan"), t("How much can I borrow?")])
 
 with tab1:
-    has_loan = st.radio(t("Are you currently repaying a loan?"), [t("Yes"), t("No")], horizontal=True) == t("Yes")
+    loans = st.session_state.get("loans", [])
 
-    if has_loan:
+    if not loans:
+        st.info(t("You haven't added any loans yet — add one on your Finances page."))
+    else:
         st.subheader(t("When will I repay my existing loan?"))
 
-        principal = st.number_input(t("How much do you still owe? (Rs)"), min_value=0.0, step=500.0)
-        annual_rate = st.slider(t("Interest rate (%)"), 0.0, 20.0, 9.0, step=0.1)
+        loan_names = [l["name"] for l in loans]
+        selected_name = st.selectbox(t("Which loan?"), loan_names)
+        selected_loan = next(l for l in loans if l["name"] == selected_name)
 
-        if principal > 0:
-            suggested_payment = calculate_monthly_payment(principal, annual_rate, term_years=5)
-            st.caption(f"💡 {t('For reference, paying this off over 5 years would be about')} Rs {suggested_payment}{t('/month')}")
+        principal = selected_loan["principal"]
+        annual_rate = selected_loan.get("rate", 9.0)
+        monthly_payment = selected_loan["payment"]
 
-        monthly_payment = st.number_input(t("How much do you pay per month? (Rs)"), min_value=0.0, step=100.0)
+        st.write(
+            f"{t('Owing')} Rs {principal:,.0f} {t('at')} {annual_rate}%, "
+            f"{t('paying')} Rs {monthly_payment:,.0f}{t('/month')}"
+        )
+
+        if principal <= 0:
+            st.error(t("Loan amount must be greater than 0."))
+        elif monthly_payment <= 0:
+            st.error(t("Monthly payment must be greater than 0."))
+        elif monthly_payment > principal:
+            st.info(f"ℹ️ {t('Since your payment is more than what you owe, you would pay this off in 1 month.')}")
+        else:
+            months = months_to_repay(principal, annual_rate, monthly_payment)
+
+            if months is None:
+                st.error(t("⚠️ Your payment doesn't cover the interest — at this rate, you'll never pay off this loan."))
+            else:
+                years = months / 12
+                st.success(f"✅ {t('You will repay your loan in')} **{months} {t('months')}** (~{years:.1f} {t('years')})")
+
+                schedule = amortisation_schedule(principal, annual_rate, monthly_payment, months)
+
+                interest_data = [m["interest_portion"] for m in schedule]
+                principal_data = [m["principal_portion"] for m in schedule]
+
+                st.subheader(t("📊 Interest vs. Principal Over Time"))
+
+                chart_df = pd.DataFrame({
+                    t("Interest paid (Rs)"): interest_data,
+                    t("Principal paid (Rs)"): principal_data
+                }, index=[f"{t('Month')} {m}" for m in range(1, len(interest_data) + 1)])
+
+                st.line_chart(chart_df)
+                st.caption(f"{t('Showing the full')} {len(interest_data)}-{t('month repayment period, from month 1 to month')} {len(interest_data)}.")
+
+        # keep the existing-loan-payment shared value in sync for Tab 2's prefill,
+        # using the SELECTED loan's payment (not a manual re-entry)
         st.session_state["existing_loan_payment"] = monthly_payment
         st.session_state["loan2_debt"] = monthly_payment
-
-        if st.button(t("Calculate repayment time"), type="primary"):
-            if principal <= 0:
-                st.error(t("Loan amount must be greater than 0."))
-            elif monthly_payment <= 0:
-                st.error(t("Monthly payment must be greater than 0."))
-            elif monthly_payment > principal:
-                st.info(f"ℹ️ {t('Since your payment is more than what you owe, you would pay this off in 1 month.')}")
-            else:
-                months = months_to_repay(principal, annual_rate, monthly_payment)
-
-                if months is None:
-                    st.error(t("⚠️ Your payment doesn't cover the interest — at this rate, you'll never pay off this loan."))
-                else:
-                    years = months / 12
-                    st.success(f"✅ {t('You will repay your loan in')} **{months} {t('months')}** (~{years:.1f} {t('years')})")
-
-                    schedule = amortisation_schedule(principal, annual_rate, monthly_payment, months)
-
-                    interest_data = [m["interest_portion"] for m in schedule]
-                    principal_data = [m["principal_portion"] for m in schedule]
-
-                    st.subheader(t("📊 Interest vs. Principal Over Time"))
-                    st.line_chart({
-                        t("Interest paid"): interest_data,
-                        t("Principal paid"): principal_data
-                    })
-    else:
-        st.session_state["existing_loan_payment"] = 0.0
-        st.session_state["loan2_debt"] = 0.0
-        st.info(t("You currently are not repaying a loan."))
 
 
 with tab2:
