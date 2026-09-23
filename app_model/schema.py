@@ -20,7 +20,7 @@ def create_user_profile(conn):
     avatar TEXT,
     background_color TEXT,
     role TEXT DEFAULT "user",
-    FOREIGN KEY (user_id) REFERENCES users_login(id));'''
+    FOREIGN KEY (user_id) REFERENCES users_login(id) ON DELETE CASCADE);'''
     cur.execute(sql)
     conn.commit()
 
