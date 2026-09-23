@@ -4,6 +4,8 @@ from calculations.projections import run_full_simulation
 from calculations.goals_ai import simulate_savings_increase, explain_goals
 from calculations.language import show_language_picker, t
 from calculations.goals import inflating_target_over_time
+from calculations.ui_style import help_question_widget
+
 
 st.set_page_config(
     page_title="Your Dashboard",
@@ -20,6 +22,7 @@ if "income" not in st.session_state:
     st.stop()
 
 results = run_full_simulation(st.session_state, months=60)
+help_question_widget(dict(st.session_state), results)
 
 if "goals_status" in results:
     st.subheader(t("🎯 Your Goals"))

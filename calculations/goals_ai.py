@@ -219,3 +219,70 @@ def explain_loan_payoff_plan(loan_name, principal, annual_rate, desired_years, r
     except Exception as e:
         print("EXPLAIN_LOAN_PAYOFF_PLAN ERROR:", repr(e))
         return "Sorry, I couldn't generate an explanation right now — please try again in a moment."
+
+
+def answer_user_question(question, user_data, results):
+    """
+    Answers a ONE-OFF question about the user's own financial data.
+    NOT a persistent chatbot -- no memory across questions, no
+    follow-up conversation. Same guardrail pattern as every other
+    function in this file: the AI is handed the user's REAL
+    calculated data and told to answer ONLY using it, and to refuse
+    anything unrelated (investment advice, stock picks, general life
+    advice, anything not about THIS app's own numbers).
+    """
+    lang = st.session_state.get("language", "en")
+    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+
+    # gather only what's safe/relevant to hand over -- never invent
+    # extra context, just pass through what's already calculated
+    goals_status = results.get("goals_status", [])
+    loans = user_data.get("loans", [])
+    expense_categories = user_data.get("expense_categories", [])
+    income = user_data.get("income", 0)
+    expenses = user_data.get("expenses", 0)
+    current_savings = user_data.get("current_savings", 0)
+    monthly_savings = user_data.get("monthly_savings", 0)
+
+    prompt = f"""
+    You are a narrow financial-summary assistant INSIDE a specific app.
+    You may ONLY answer questions about the user's OWN data shown below.
+    You must REFUSE (politely, in 1-2 sentences) any question that is:
+    - general investment advice ("what stock should I buy")
+    - unrelated to personal finance ("what's the weather")
+    - asking for legal/tax/professional advice
+    - asking you to calculate something NOT already given below
+      (you are not allowed to do new math -- only reference the
+      numbers already provided)
+
+    The user's data:
+    - Monthly income: Rs {income}
+    - Monthly expenses: Rs {expenses}
+    - Expense categories: {expense_categories}
+    - Current savings: Rs {current_savings}
+    - Monthly savings: Rs {monthly_savings}
+    - Goals progress: {goals_status}
+    - Loans: {loans}
+
+    The user's question: "{question}"
+
+    If the question is answerable using ONLY the data above, answer
+    in 2-3 friendly sentences using ONLY those numbers -- do not
+    invent or recalculate anything. If the question is off-topic or
+    asks for something not covered by this data, politely say this
+    assistant can only help with questions about their own goals,
+    loans, and spending shown in the app, and suggest they check the
+    relevant page (Finances, Dashboard, or Loans).
+
+    Respond entirely in {lang_name}.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print("ANSWER_USER_QUESTION ERROR:", repr(e))
+        return "Sorry, I couldn't answer that right now — please try again in a moment."
