@@ -37,6 +37,20 @@ def alter_users_login_table(conn):
         cur.execute('ALTER TABLE users_login ADD COLUMN last_login_time TEXT')
     conn.commit()
 
+def create_audit_table(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            admin_id INTEGER,
+            action TEXT NOT NULL,
+            description TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+
 def delete_column(conn, column_name):
     cur = conn.cursor()
     sql = f'ALTER TABLE users DROP COLUMN {column_name}'
