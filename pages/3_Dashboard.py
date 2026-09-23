@@ -3,6 +3,11 @@ from calculations.projections import run_full_simulation
 from calculations.goals_ai import simulate_savings_increase, explain_goals
 from calculations.language import show_language_picker, t
 from calculations.goals import inflating_target_over_time
+from calculations.gamification import (
+    calculate_goal_progress,
+    get_goal_stage,
+    get_stage_name
+)
 
 st.set_page_config(
     page_title="Your Dashboard",
@@ -26,6 +31,26 @@ if "goals_status" in results:
     for goal in results["goals_status"]:
         actual_months = results["actual_months_per_goal"][goal["name"]]
         real_target = results["inflation_adjusted_target_per_goal"][goal["name"]]
+
+        # Gamification progress
+        current_savings = st.session_state["current_savings"]
+
+        progress = calculate_goal_progress(
+            current_savings,
+            goal["amount"]
+        )
+
+        stage = get_goal_stage(
+            current_savings,
+            goal["amount"]
+        )
+
+        stage_name = get_stage_name(stage)
+
+        st.progress(
+            progress / 100,
+            text=f"🎯 {stage_name} — {progress:.0f}%"
+        )
 
         if goal["reached"]:
             st.caption(f"💡 {t('With inflation, this goal will likely cost around')} Rs {real_target:,.0f} {t('by your deadline (vs. Rs')} {goal['amount']:,.0f} {t('today).')}")

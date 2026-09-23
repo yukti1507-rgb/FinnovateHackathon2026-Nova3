@@ -47,24 +47,24 @@ with tab1:
 
                 if months is None:
                     st.error(t("⚠️ Your payment doesn't cover the interest — at this rate, you'll never pay off this loan."))
-            else:
-                    years = months / 12
-                    st.success(f"✅ {t('You will repay your loan in')} **{months} {t('months')}** (~{years:.1f} {t('years')})")
+        else:
+                years = months / 12
+                st.success(f"✅ {t('You will repay your loan in')} **{months} {t('months')}** (~{years:.1f} {t('years')})")
 
-                    schedule = amortisation_schedule(principal, annual_rate, monthly_payment, months)
+                schedule = amortisation_schedule(principal, annual_rate, monthly_payment, months)
 
-                    interest_data = [m["interest_portion"] for m in schedule]
-                    principal_data = [m["principal_portion"] for m in schedule]
+                interest_data = [m["interest_portion"] for m in schedule]
+                principal_data = [m["principal_portion"] for m in schedule]
 
-                    st.subheader(t("📊 Interest vs. Principal Over Time"))
+                st.subheader(t("📊 Interest vs. Principal Over Time"))
 
-                    chart_df = pd.DataFrame({
-                        t("Interest paid (Rs)"): interest_data,
-                        t("Principal paid (Rs)"): principal_data
-                    }, index=[f"{t('Month')} {m}" for m in range(1, len(interest_data) + 1)])
+                chart_df = pd.DataFrame({
+                    t("Interest paid (Rs)"): interest_data,
+                    t("Principal paid (Rs)"): principal_data
+                }, index=[f"{t('Month')} {m}" for m in range(1, len(interest_data) + 1)])
 
-                    st.line_chart(chart_df)
-                    st.caption(f"{t('Showing the full')} {len(interest_data)}-{t('month repayment period, from month 1 to month')} {len(interest_data)}.")
+                st.line_chart(chart_df)
+                st.caption(f"{t('Showing the full')} {len(interest_data)}-{t('month repayment period, from month 1 to month')} {len(interest_data)}.")
     else:
         st.session_state["existing_loan_payment"] = 0.0
         st.session_state["loan2_debt"] = 0.0
