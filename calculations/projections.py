@@ -39,25 +39,36 @@ def run_full_simulation(user_data, months=60):
         results["goals_status"] = check_all_goals(
             results["savings_projection"], user_data["goals"]
         )
+
+        #what each goal will actually cost by its deadline, with inflation
+        #IMPORTANT: computed FIRST, so every other calc below uses this
+        #SAME real (inflation-adjusted) target -- never the raw today-price
+        #amount. Mixing raw and inflated targets across calculations was
+        #causing contradictory messages (e.g. "you'll reach it sooner"
+        #alongside "that's later than your target").
+        results["inflation_adjusted_target_per_goal"] = {
+            g["name"]: inflation_adjusted_target(g["amount"], g["years"])
+            for g in user_data["goals"]
+        }
+
         results["required_monthly_per_goal"] = {
             g["name"]: required_monthly_contribution(
-                g["amount"], user_data["current_savings"],
+                results["inflation_adjusted_target_per_goal"][g["name"]],
+                user_data["current_savings"],
                 user_data["savings_rate"], g["years"] * 12
             )
             for g in user_data["goals"]
         }
-        #actual time to reach each goal at current rate, no deadline
+
+        #actual time to reach each goal's REAL (inflated) target at
+        #current rate, no deadline
         results["actual_months_per_goal"] = {
             g["name"]: months_to_reach_at_current_rate(
                 user_data["current_savings"], user_data["monthly_savings"],
-                user_data["savings_rate"], g["amount"]
+                user_data["savings_rate"],
+                results["inflation_adjusted_target_per_goal"][g["name"]]
             )
             for g in user_data["goals"]
-        }
-        #what each goal will actually cost by its deadline, with inflation
-        results["inflation_adjusted_target_per_goal"] = {
-        g["name"]: inflation_adjusted_target(g["amount"], g["years"])
-        for g in user_data["goals"]
         }
 
     return results

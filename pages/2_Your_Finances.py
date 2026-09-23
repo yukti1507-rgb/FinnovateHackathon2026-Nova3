@@ -31,7 +31,6 @@ if "variable_expenses" not in st.session_state:
 if "other_fixed_expenses" not in st.session_state:
     st.session_state["other_fixed_expenses"] = []
 
-st.write("DEBUG:", dict(st.session_state))  # TEMPORARY - remove after debugging
 
 st.divider()
 
@@ -381,6 +380,13 @@ for i, goal in enumerate(st.session_state["goals"]):
 st.write("")
 
 with st.expander(t("➕ Add a new goal")):
+    st.info(
+        f"\U0001f4a1 {t('This is for SAVING toward something (a car, a trip, emergency fund, etc.).')} "
+        f"{t('If your goal is to pay off an existing loan or debt, use the Loans page instead — it calculates this more accurately.')}"
+    )
+    if st.button(t("\U0001f4b3 Go to Loans page"), key="goto_loans_from_goal"):
+        st.switch_page("pages/4_Loans.py")
+
     new_goal_name = st.text_input(t("What are you saving for?"), key="new_goal_name_input")
     new_goal_amount = st.number_input(t("How much do you need? (Rs)"), min_value=0.0, step=500.0, key="new_goal_amount_input")
     new_goal_years = st.number_input(t("By when? (years from now)"), min_value=1, max_value=30, step=1, key="new_goal_years_input")

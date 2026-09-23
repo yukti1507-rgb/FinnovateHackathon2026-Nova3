@@ -30,9 +30,16 @@ def simulate_savings_increase(user_data, increase_percent=0.10):
 def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, required_monthly_per_goal, monthly_savings, user_data, inflation_adjusted_target_per_goal=None, increase_percent=0.10):
     """
     Hands the REAL, already-calculated numbers to the AI and asks it
-    to lay out the user's actual OPTIONS: save more, cut a specific
-    expense, or take a loan. The AI only narrates — every number here
+    to lay out the user's actual OPTIONS for SAVINGS goals: save more,
+    or cut a specific expense. The AI only narrates — every number here
     was already calculated by pure Python functions above/elsewhere.
+
+    NOTE: loan suggestions were intentionally removed from this function.
+    Goals here are for SAVING TOWARD something (a car, a trip, etc.) --
+    paying off an existing loan/debt is a different math problem, handled
+    properly on the dedicated Loans page instead. Suggesting "take a loan"
+    here previously created nonsensical advice like "take a loan to help
+    pay off your mortgage goal."
     """
     increased_amount = round(monthly_savings * (1 + increase_percent), 2)
 
@@ -49,23 +56,6 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
             f"by half would save Rs {top['cut_amount']}/month and reach '{top['goal_name']}' "
             f"{top['months_saved']} months sooner."
         )
-
-    # ---- Option C: rough loan estimate for any goal with a real shortfall ----
-    loan_options_text = ""
-    for goal in goals_status:
-        if not goal["reached"]:
-            deadline_months = goal["deadline_months"]
-            target_for_gap = goal.get("real_target", goal["amount"])
-            gap_info = calculate_goal_gap(
-                user_data["current_savings"], user_data["monthly_savings"],
-                user_data["savings_rate"], deadline_months, target_for_gap
-            )
-            if gap_info["gap"] > 0:
-                rough_payment = calculate_monthly_payment(gap_info["gap"], 9.0, 5)
-                loan_options_text += (
-                    f"For '{goal['name']}', a loan of about Rs {gap_info['gap']} at ~9% over 5 years "
-                    f"would cost roughly Rs {rough_payment}/month. "
-                )
 
     inflation_text = ""
     if inflation_adjusted_target_per_goal:
@@ -94,16 +84,16 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
 
     Option B — cut a specific expense: {top_cut_text if top_cut_text else "No single want-expense cut meaningfully speeds up any goal."}
 
-    Option C — take a loan: {loan_options_text if loan_options_text else "No goal currently has a shortfall requiring a loan."}
-
-    In 4-5 friendly, clear sentences: briefly mention that these numbers
+    In 3-4 friendly, clear sentences: briefly mention that these numbers
     account for inflation (so the goals will genuinely cost more by the
     time they're reached, not just today's price), then lay out the real
     OPTIONS the user can choose between (not a single forced
-    recommendation) — saving more, cutting a specific expense, or taking
-    a loan — using ONLY the numbers given above. Do not invent or
-    recalculate anything yourself. If an option has no real effect
-    (marked as such above), skip it rather than forcing it into the answer.
+    recommendation) — saving more, or cutting a specific expense —
+    using ONLY the numbers given above. Do not invent or recalculate
+    anything yourself. Do NOT suggest taking out a loan under any
+    circumstances -- that is handled elsewhere in the app. If an option
+    has no real effect (marked as such above), skip it rather than
+    forcing it into the answer.
 
     Respond entirely in {lang_name}.
     """
@@ -141,4 +131,91 @@ def explain_goal_with_loan(goal, gap_info, loan_plan, max_borrowable):
         )
         return response.choices[0].message.content
     except Exception as e:
+        return "Sorry, I couldn't generate an explanation right now — please try again in a moment."
+
+
+def explain_loan_repayment(loan_name, principal, annual_rate, monthly_payment, months, total_interest):
+    """
+    Explains a loan's interest-vs-principal pattern in plain language.
+    All numbers here are already calculated — the AI only narrates.
+    """
+    lang = st.session_state.get("language", "en")
+    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+
+    prompt = f"""
+    A user has a loan called '{loan_name}':
+    - Amount owed: Rs {principal}
+    - Interest rate: {annual_rate}% per year
+    - Monthly payment: Rs {monthly_payment}
+    - Time to pay off: {months} months
+    - Total interest they'll pay over the life of the loan: Rs {total_interest}
+
+    In 2-3 friendly, plain-language sentences, explain to the user:
+    why their early payments go more toward interest and later payments go
+    more toward the actual balance (if applicable), and what the total
+    interest cost means for them in practical terms. Only use the numbers
+    given above — do not invent or recalculate anything.
+
+    Respond entirely in {lang_name}.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print("EXPLAIN_LOAN_REPAYMENT ERROR:", repr(e))  # TEMPORARY - check terminal
+        return "Sorry, I couldn't generate an explanation right now — please try again in a moment."
+
+
+def explain_loan_payoff_plan(loan_name, principal, annual_rate, desired_years, required_payment, current_payment, expense_categories):
+    """
+    Compares what the user is CURRENTLY paying against what they'd NEED
+    to pay to hit their own chosen payoff timeframe, and suggests which
+    'want' expenses could realistically cover the gap. All numbers here
+    are already calculated -- the AI only narrates and picks the most
+    sensible option(s) from the real list given.
+    """
+    lang = st.session_state.get("language", "en")
+    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+
+    gap = round(required_payment - current_payment, 2)
+
+    wants = [e for e in expense_categories if e["type"] == "Want" and e["amount"] > 0]
+    wants_text = ", ".join(f"{w['name']} (Rs {w['amount']}/month)" for w in wants) if wants else "none listed"
+
+    prompt = f"""
+    A user has a loan called '{loan_name}':
+    - Amount owed: Rs {principal}
+    - Interest rate: {annual_rate}% per year
+    - They want to pay it off in {desired_years} years
+    - To hit that timeframe, they'd need to pay Rs {required_payment}/month
+    - They are CURRENTLY paying: Rs {current_payment}/month
+    - Gap between what's needed and what they currently pay: Rs {gap}/month
+
+    Their 'want' expenses (non-essential, could potentially be reduced): {wants_text}
+
+    In 3-4 friendly, clear sentences: if the gap is positive (they need to
+    pay MORE to hit their {desired_years}-year goal), suggest ONE OR MORE
+    specific 'want' expenses from the list above whose combined amount
+    could realistically cover or help cover the gap, and state clearly
+    that increasing their payment to Rs {required_payment}/month gets them
+    to their goal in exactly {desired_years} years. If the gap is zero or
+    negative (they're already paying enough or more), congratulate them
+    and confirm they're on track or ahead. Only use the numbers given
+    above -- do not invent or recalculate anything yourself.
+
+    Respond entirely in {lang_name}.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print("EXPLAIN_LOAN_PAYOFF_PLAN ERROR:", repr(e))
         return "Sorry, I couldn't generate an explanation right now — please try again in a moment."

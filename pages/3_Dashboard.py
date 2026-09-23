@@ -1,13 +1,9 @@
 import streamlit as st
+import pandas as pd
 from calculations.projections import run_full_simulation
 from calculations.goals_ai import simulate_savings_increase, explain_goals
 from calculations.language import show_language_picker, t
 from calculations.goals import inflating_target_over_time
-from calculations.gamification import (
-    calculate_goal_progress,
-    get_goal_stage,
-    get_stage_name
-)
 
 st.set_page_config(
     page_title="Your Dashboard",
@@ -31,26 +27,6 @@ if "goals_status" in results:
     for goal in results["goals_status"]:
         actual_months = results["actual_months_per_goal"][goal["name"]]
         real_target = results["inflation_adjusted_target_per_goal"][goal["name"]]
-
-        # Gamification progress
-        current_savings = st.session_state["current_savings"]
-
-        progress = calculate_goal_progress(
-            current_savings,
-            goal["amount"]
-        )
-
-        stage = get_goal_stage(
-            current_savings,
-            goal["amount"]
-        )
-
-        stage_name = get_stage_name(stage)
-
-        st.progress(
-            progress / 100,
-            text=f"🎯 {stage_name} — {progress:.0f}%"
-        )
 
         if goal["reached"]:
             st.caption(f"💡 {t('With inflation, this goal will likely cost around')} Rs {real_target:,.0f} {t('by your deadline (vs. Rs')} {goal['amount']:,.0f} {t('today).')}")
@@ -76,18 +52,28 @@ if "goals_status" in results:
         with st.expander(f"📈 {t('See')} {goal['name']} {t('vs. inflation-adjusted target')}"):
             deadline_months = goal["deadline_months"]
 
-            # savings balance for just this goal's timeframe (trim the 60-month projection)
-            savings_for_this_goal = [
-                m["balance"] for m in results["savings_projection"][:deadline_months]
-            ]
+            # ALWAYS compute a fresh projection for exactly this goal's own
+            # deadline length — do NOT slice the shared 60-month projection,
+            # since goals longer than 60 months (5 years) would otherwise
+            # mismatch lengths with the inflating target line and corrupt
+            # the chart.
+            from calculations.savings import project_savings
+            fresh_projection = project_savings(
+                starting_balance=st.session_state["current_savings"],
+                monthly_contribution=st.session_state["monthly_savings"],
+                annual_rate=st.session_state["savings_rate"],
+                months=deadline_months
+            )
+            savings_for_this_goal = [m["balance"] for m in fresh_projection]
 
-            # the inflating target line, same length
+            # the inflating target line, guaranteed same length
             inflating_line = inflating_target_over_time(goal["amount"], deadline_months)
 
-            st.line_chart({
+            chart_df = pd.DataFrame({
                 t("Your savings"): savings_for_this_goal,
                 t("Inflating target"): inflating_line
             })
+            st.line_chart(chart_df)
 else:
     st.info(t("You haven't added any goals yet — go to your Finances page to add one."))
 
@@ -107,11 +93,10 @@ if "goals_status" in results:
                 dict(st.session_state),
                 results["inflation_adjusted_target_per_goal"]
             )
-        st.info(explanation)
-st.divider()
+        st.info(explanation)  # already in the right language via the AI prompt itself
 
-st.subheader(t("📈 Your Savings Projection"))
-st.line_chart([m["balance"] for m in results["savings_projection"]])
+
+st.divider()
 
 if "loan_summary" in results:
     st.metric(t("Total interest on loan"), f"Rs {results['loan_summary']['total_interest']}")
