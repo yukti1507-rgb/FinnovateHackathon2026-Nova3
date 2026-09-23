@@ -9,6 +9,20 @@ st.set_page_config(
 
 show_language_picker()
 
+def sanity_check_amount(value, field_label_key, max_reasonable=100_000_000):
+    """
+    Catches accidental huge numbers -- most commonly from someone
+    typing scientific notation by mistake (e.g. typing "5e" while
+    aiming for "5000" produces 50,000,000,000 instead). Number inputs
+    allow this by default and there's no way to block the keystroke,
+    so we flag it after the fact instead of silently accepting it.
+    """
+    if value > max_reasonable:
+        st.warning(
+            f"⚠️ {t('That amount looks unusually large for')} {t(field_label_key)} "
+            f"({value:,.0f}). {t('Please double-check you did not accidentally use scientific notation (like 5e10) or add an extra digit.')}"
+        )
+
 st.title(t("Your Finances"))
 st.caption(t("Edit your details anytime — your dashboard updates automatically."))
 
@@ -31,6 +45,7 @@ if "variable_expenses" not in st.session_state:
 if "other_fixed_expenses" not in st.session_state:
     st.session_state["other_fixed_expenses"] = []
 
+st.write("DEBUG:", dict(st.session_state))  # TEMPORARY - remove after debugging
 
 st.divider()
 
@@ -109,8 +124,24 @@ for i, loan in enumerate(st.session_state["loans"]):
 with st.expander(t("➕ Add a loan")):
     new_loan_name = st.text_input(t("What's this loan for?"), placeholder="e.g. Car, House", key="new_loan_name")
     new_loan_principal = st.number_input(t("Amount still owed (Rs)"), min_value=0.0, step=500.0, key="new_loan_principal")
+    sanity_check_amount(new_loan_principal, "loan amount")
     new_loan_rate = st.slider(t("Interest rate (%)"), 0.0, 20.0, 9.0, step=0.1, key="new_loan_rate")
-    new_loan_payment = st.number_input(t("Monthly payment (Rs)"), min_value=0.0, step=50.0, key="new_loan_payment")
+
+    # We already have principal + rate right here, so calculate a
+    # suggested minimum payment (standard 5-year term) and pre-fill
+    # the payment field with it -- the user only needs to change it
+    # if they want to pay MORE than this suggested amount.
+    if new_loan_principal > 0:
+        from calculations.loans import calculate_monthly_payment
+        suggested_new_loan_payment = calculate_monthly_payment(new_loan_principal, new_loan_rate, term_years=5)
+        st.caption(f"💡 {t('Suggested minimum payment (5-year term):')} Rs {suggested_new_loan_payment:,.2f}{t('/month')}")
+    else:
+        suggested_new_loan_payment = 0.0
+
+    new_loan_payment = st.number_input(
+        t("Monthly payment (Rs)"), min_value=0.0, step=50.0,
+        value=suggested_new_loan_payment, key="new_loan_payment"
+    )
 
     if st.button(t("Add loan"), type="primary"):
         if new_loan_name.strip() == "":
@@ -358,22 +389,41 @@ st.divider()
 
 st.subheader(t("🎯 Your Goals"))
 
+# BUG FIX: goal widgets used to be keyed by their LIST POSITION (i).
+# When a goal in the middle/start of the list was deleted, every
+# goal after it shifted position -- but Streamlit remembers widget
+# values BY KEY, so the shifted goal's box would still show the
+# PREVIOUS goal's stale data at that position, instead of its own.
+#
+# Fix: give every goal a permanent, stable "id" that never changes,
+# and key widgets by that id instead of by position. New goals get
+# the next id from an ever-increasing counter, so ids are never
+# reused even after deletions.
+if "goal_id_counter" not in st.session_state:
+    st.session_state["goal_id_counter"] = 0
+
+for g in st.session_state["goals"]:
+    if "id" not in g:
+        g["id"] = st.session_state["goal_id_counter"]
+        st.session_state["goal_id_counter"] += 1
+
 for i, goal in enumerate(st.session_state["goals"]):
+    gid = goal["id"]
     with st.expander(f"{goal['name']} — Rs {goal['amount']}"):
-        new_name = st.text_input(t("Goal name"), value=goal["name"], key=f"goal_name_{i}")
+        new_name = st.text_input(t("Goal name"), value=goal["name"], key=f"goal_name_{gid}")
         new_amount = st.number_input(
-            t("Amount needed (Rs)"), value=goal["amount"], min_value=0.0, step=500.0, key=f"goal_amount_{i}"
+            t("Amount needed (Rs)"), value=goal["amount"], min_value=0.0, step=500.0, key=f"goal_amount_{gid}"
         )
         new_years = st.number_input(
-            t("Years to achieve"), value=goal["years"], min_value=1, max_value=30, step=1, key=f"goal_years_{i}"
+            t("Years to achieve"), value=goal["years"], min_value=1, max_value=30, step=1, key=f"goal_years_{gid}"
         )
 
         if new_amount <= 0:
             st.warning(t("⚠️ Amount must be greater than 0 — this goal won't be included in calculations until fixed."))
         else:
-            st.session_state["goals"][i] = {"name": new_name, "amount": new_amount, "years": new_years}
+            st.session_state["goals"][i] = {"name": new_name, "amount": new_amount, "years": new_years, "id": gid}
 
-        if st.button(t("🗑️ Remove this goal"), key=f"remove_goal_{i}"):
+        if st.button(t("🗑️ Remove this goal"), key=f"remove_goal_{gid}"):
             st.session_state["goals"].pop(i)
             st.rerun()
 
@@ -389,6 +439,7 @@ with st.expander(t("➕ Add a new goal")):
 
     new_goal_name = st.text_input(t("What are you saving for?"), key="new_goal_name_input")
     new_goal_amount = st.number_input(t("How much do you need? (Rs)"), min_value=0.0, step=500.0, key="new_goal_amount_input")
+    sanity_check_amount(new_goal_amount, "goal amount")
     new_goal_years = st.number_input(t("By when? (years from now)"), min_value=1, max_value=30, step=1, key="new_goal_years_input")
 
     if st.button(t("Add goal"), type="primary"):
@@ -397,7 +448,21 @@ with st.expander(t("➕ Add a new goal")):
         elif new_goal_amount <= 0:
             st.error(t("Goal amount must be greater than 0."))
         else:
-            st.session_state["goals"].append({"name": new_goal_name, "amount": new_goal_amount, "years": new_goal_years})
+            st.session_state["goals"].append({
+                "name": new_goal_name, "amount": new_goal_amount, "years": new_goal_years,
+                "id": st.session_state["goal_id_counter"]
+            })
+            st.session_state["goal_id_counter"] += 1
+
+            # BUG FIX: the Add-goal form's own input boxes were
+            # never being cleared after a successful add -- Streamlit
+            # remembers typed values by key forever unless you
+            # explicitly remove them. This is why the SAME name/amount
+            # kept reappearing every time the "Add a new goal" section
+            # was reopened, even after deleting that goal.
+            for key_to_clear in ["new_goal_name_input", "new_goal_amount_input", "new_goal_years_input"]:
+                st.session_state.pop(key_to_clear, None)
+
             st.success(f"{t('Added')} '{new_goal_name}' {t('to your goals!')}")
             st.rerun()
 

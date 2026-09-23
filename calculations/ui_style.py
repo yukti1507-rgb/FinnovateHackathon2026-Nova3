@@ -23,30 +23,16 @@ import streamlit as st
 def inject_custom_css():
     st.markdown("""
     <style>
-    /* ============================================================
-       ACCESSIBILITY: visible focus outlines for keyboard navigation
-       (screen reader / keyboard-only users need to SEE where focus
-       is -- browsers often hide this by default in dark themes)
-       ============================================================ */
     *:focus-visible {
         outline: 3px solid #0072B2 !important;
         outline-offset: 2px !important;
     }
 
-    /* ============================================================
-       ACCESSIBILITY: ensure minimum readable font sizes
-       (WCAG recommends body text no smaller than 16px)
-       ============================================================ */
     .stMarkdown p, .stMarkdown li, div[data-testid="stCaptionContainer"] {
         font-size: 1rem !important;
         line-height: 1.6 !important;
     }
 
-    /* ============================================================
-       POLISH: card-style containers for metrics, expanders, info
-       boxes -- gives a cleaner, more "designed" look with subtle
-       depth instead of flat blocks
-       ============================================================ */
     div[data-testid="stMetric"] {
         background-color: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -59,11 +45,6 @@ def inject_custom_css():
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
 
-    /* ============================================================
-       POLISH: buttons -- slightly rounded, clear hover state
-       (hover feedback also helps users confirm they're clicking
-       the right thing -- an accessibility win, not just style)
-       ============================================================ */
     .stButton > button {
         border-radius: 10px !important;
         font-weight: 600 !important;
@@ -74,12 +55,6 @@ def inject_custom_css():
         box-shadow: 0 4px 12px rgba(0, 114, 178, 0.25);
     }
 
-    /* ============================================================
-       ACCESSIBILITY: success/warning/error boxes -- add a left
-       border stripe so status is visible by SHAPE, not just color
-       (critical for colorblind users who may not distinguish the
-       background color tint alone)
-       ============================================================ */
     div[data-testid="stAlertContentSuccess"] {
         border-left: 5px solid #009E73 !important;
         padding-left: 12px !important;
@@ -97,18 +72,10 @@ def inject_custom_css():
         padding-left: 12px !important;
     }
 
-    /* ============================================================
-       POLISH: consistent section spacing so pages don't feel
-       cramped or overly sparse
-       ============================================================ */
     div[data-testid="stVerticalBlock"] > div {
         margin-bottom: 0.25rem;
     }
 
-    /* ============================================================
-       POLISH: sidebar (language picker) -- slightly distinguish it
-       from main content so navigation feels intentional
-       ============================================================ */
     section[data-testid="stSidebar"] {
         border-right: 1px solid rgba(255, 255, 255, 0.08);
     }
@@ -117,14 +84,6 @@ def inject_custom_css():
 
 
 def styled_section_header(emoji, title, subtitle=None):
-    """
-    A consistent, polished section header -- use instead of a bare
-    st.subheader() for the main heading on each page/section, for a
-    more "designed" look with an optional subtitle underneath.
-
-    Example:
-        styled_section_header("💸", "Where Your Money Goes", "A breakdown of your monthly spending")
-    """
     st.markdown(f"""
     <div style="margin-bottom: 0.5rem;">
         <span style="font-size: 1.4rem;">{emoji}</span>
@@ -137,29 +96,23 @@ def styled_section_header(emoji, title, subtitle=None):
 
 def help_question_widget(user_data, results):
     """
-    A single-question help box -- NOT a persistent chat. The user
-    types one question, gets one answer, using their real calculated
-    data. No conversation history, no memory between questions.
-
-    USAGE -- add near the top of any page, after inject_custom_css():
-
-        from calculations.ui_style import help_question_widget
-        from calculations.goals_ai import answer_user_question
-        help_question_widget(dict(st.session_state), results)
-
-    (`results` is whatever run_full_simulation() already returned on
-    that page -- reuse it, don't recompute.)
+    A single-question help box -- NOT a persistent chat.
     """
     from calculations.goals_ai import answer_user_question
+    from calculations.language import t
 
-    with st.expander("❓ " + "Ask a question about your finances"):
-        st.caption("Ask about your goals, loans, or spending shown in this app.")
-        question = st.text_input("Your question", key="help_question_input", label_visibility="collapsed", placeholder="e.g. How am I doing on my Laptop goal?")
+    with st.expander("❓ " + t("Ask a question about your finances")):
+        st.caption(t("Ask about your goals, loans, or spending shown in this app."))
+        question = st.text_input(
+            t("Your question"), key="help_question_input",
+            label_visibility="collapsed",
+            placeholder=t("e.g. How am I doing on my Laptop goal?")
+        )
 
-        if st.button("Ask", key="help_question_button"):
+        if st.button(t("Ask"), key="help_question_button"):
             if question.strip() == "":
-                st.warning("Please type a question first.")
+                st.warning(t("Please type a question first."))
             else:
-                with st.spinner("Thinking..."):
+                with st.spinner(t("Thinking...")):
                     answer = answer_user_question(question, user_data, results)
                 st.info(answer)

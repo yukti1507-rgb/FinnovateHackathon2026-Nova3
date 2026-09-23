@@ -44,7 +44,7 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
     increased_amount = round(monthly_savings * (1 + increase_percent), 2)
 
     lang = st.session_state.get("language", "en")
-    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}.get(lang, "English")
 
     # ---- Option B: best specific expense cut, if any genuinely helps ----
     best_cuts = find_best_cuts(user_data, goals_status)
@@ -115,7 +115,7 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
 
 def explain_goal_with_loan(goal, gap_info, loan_plan, max_borrowable):
     lang = st.session_state.get("language", "en")
-    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}.get(lang, "English")
 
     prompt = f"""
     A user's goal: {goal}
@@ -156,7 +156,7 @@ def explain_loan_repayment(loan_name, principal, annual_rate, monthly_payment, m
     All numbers here are already calculated — the AI only narrates.
     """
     lang = st.session_state.get("language", "en")
-    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}.get(lang, "English")
 
     prompt = f"""
     A user has a loan called '{loan_name}':
@@ -200,7 +200,7 @@ def explain_loan_payoff_plan(loan_name, principal, annual_rate, desired_years, r
     sensible option(s) from the real list given.
     """
     lang = st.session_state.get("language", "en")
-    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}.get(lang, "English")
 
     gap = round(required_payment - current_payment, 2)
 
@@ -258,7 +258,7 @@ def answer_user_question(question, user_data, results):
     advice, anything not about THIS app's own numbers).
     """
     lang = st.session_state.get("language", "en")
-    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}.get(lang, "English")
 
     # gather only what's safe/relevant to hand over -- never invent
     # extra context, just pass through what's already calculated
