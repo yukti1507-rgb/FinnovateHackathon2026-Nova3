@@ -219,7 +219,7 @@ def delete_one_user(conn, name):
 #delete entire db - code used if intialisation of db is needed but this feature is not accessible to anyone but the programmer - it is not a feature found in the streamlit
 def delete_db(conn):
     cur = conn.cursor()
-    cur.execute("DELETE FROM users")
+    cur.execute("DELETE FROM users_login")
     conn.commit()
 
 #get the users theme colour
@@ -256,18 +256,18 @@ def set_admin(conn, username):
 def record_time_login(conn, name):
     cur = conn.cursor()
     login_time = datetime.now().isoformat()
-    sql = ''' UPDATE user_login SET last_login_time = ? WHERE username = ?'''
+    sql = ''' UPDATE users_login SET last_login_time = ? WHERE username = ?'''
     param = (login_time, name)
     cur.execute(sql, param)
     conn.commit()
 
 def get_login_stats(conn, name):
     cur = conn.cursor()
-    sql = '''SELECT lockout_count AND last_login_time FROM users_login WHERE username = ?'''
+    sql = '''SELECT lockout_count, last_login_time FROM users_login WHERE username = ?'''
     param = (name,)
     cur.execute(sql, param)
     result = cur.fetchone()
     if result:
-        return {"lockout_count ": result[0], "last_login_time" : result[1]}
+        return {"lockout_count": result[0], "last_login_time" : result[1]}
     return None
 
