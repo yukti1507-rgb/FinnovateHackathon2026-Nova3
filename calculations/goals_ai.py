@@ -95,6 +95,11 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
     has no real effect (marked as such above), skip it rather than
     forcing it into the answer.
 
+    All amounts are in Mauritian Rupees (MUR, symbol "Rs"). Always use
+    "Rs" for every amount you mention -- never use $, USD, INR, or any
+    other currency symbol or name, and never convert the numbers to
+    another currency.
+
     Respond entirely in {lang_name}.
     """
 
@@ -109,6 +114,9 @@ def explain_goals(goals_status, adjusted_goals_status, actual_months_per_goal, r
 
 
 def explain_goal_with_loan(goal, gap_info, loan_plan, max_borrowable):
+    lang = st.session_state.get("language", "en")
+    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
+
     prompt = f"""
     A user's goal: {goal}
     By their deadline, they'll have saved: Rs {gap_info['savings_by_deadline']}
@@ -122,6 +130,13 @@ def explain_goal_with_loan(goal, gap_info, loan_plan, max_borrowable):
     fully cover the gap, say so honestly and suggest they'll need to
     save more or extend their timeline. Only use the numbers given —
     do not invent or recalculate anything.
+
+    All amounts are in Mauritian Rupees (MUR, symbol "Rs"). Always use
+    "Rs" for every amount you mention -- never use $, USD, INR, or any
+    other currency symbol or name, and never convert the numbers to
+    another currency.
+
+    Respond entirely in {lang_name}.
     """
 
     try:
@@ -131,6 +146,7 @@ def explain_goal_with_loan(goal, gap_info, loan_plan, max_borrowable):
         )
         return response.choices[0].message.content
     except Exception as e:
+        print("EXPLAIN_GOAL_WITH_LOAN ERROR:", repr(e))
         return "Sorry, I couldn't generate an explanation right now — please try again in a moment."
 
 
@@ -155,6 +171,11 @@ def explain_loan_repayment(loan_name, principal, annual_rate, monthly_payment, m
     more toward the actual balance (if applicable), and what the total
     interest cost means for them in practical terms. Only use the numbers
     given above — do not invent or recalculate anything.
+
+    All amounts are in Mauritian Rupees (MUR, symbol "Rs"). Always use
+    "Rs" for every amount you mention -- never use $, USD, INR, or any
+    other currency symbol or name, and never convert the numbers to
+    another currency.
 
     Respond entirely in {lang_name}.
     """
@@ -206,6 +227,11 @@ def explain_loan_payoff_plan(loan_name, principal, annual_rate, desired_years, r
     negative (they're already paying enough or more), congratulate them
     and confirm they're on track or ahead. Only use the numbers given
     above -- do not invent or recalculate anything yourself.
+
+    All amounts are in Mauritian Rupees (MUR, symbol "Rs"). Always use
+    "Rs" for every amount you mention -- never use $, USD, INR, or any
+    other currency symbol or name, and never convert the numbers to
+    another currency.
 
     Respond entirely in {lang_name}.
     """
@@ -268,11 +294,30 @@ def answer_user_question(question, user_data, results):
 
     If the question is answerable using ONLY the data above, answer
     in 2-3 friendly sentences using ONLY those numbers -- do not
-    invent or recalculate anything. If the question is off-topic or
-    asks for something not covered by this data, politely say this
-    assistant can only help with questions about their own goals,
-    loans, and spending shown in the app, and suggest they check the
-    relevant page (Finances, Dashboard, or Loans).
+    invent or recalculate anything.
+
+    If the question asks for a NEW calculation this data doesn't
+    cover (e.g. "what if I saved more?", "what if I paid off my loan
+    faster?"), do NOT attempt to calculate it yourself. Instead,
+    politely explain that this box can't run new calculations, and
+    point them to the specific existing feature that already answers
+    that kind of question:
+    - "what if I saved more / cut an expense" -> the "Explain my
+      results" button on the Dashboard page (next to their goals)
+    - "what if I paid more on my loan" -> the Loans page, where they
+      can enter a target payoff timeframe
+    - "how much could I borrow" -> the "How much can I borrow?" tab
+      on the Loans page
+
+    If the question is entirely off-topic (investment advice, stock
+    picks, anything unrelated to personal finance in this app),
+    politely say this assistant can only help with questions about
+    their own goals, loans, and spending shown in the app.
+
+    All amounts are in Mauritian Rupees (MUR, symbol "Rs"). Always use
+    "Rs" for every amount you mention -- never use $, USD, INR, or any
+    other currency symbol or name, and never convert the numbers to
+    another currency.
 
     Respond entirely in {lang_name}.
     """
