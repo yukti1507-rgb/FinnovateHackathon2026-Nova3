@@ -60,23 +60,113 @@ def update_user(conn, new_username, old_username):
 #increments the failed attempts and locked(if necessary) when the user is logging in
 def update_login_attempts(conn, name):
     cur = conn.cursor()
-    sql = 'UPDATE users_login SET failed_attempts = failed_attempts + 1 WHERE username = ?'
-    param = (name,)
-    cur.execute(sql, param)
+
+    # Get the user's ID and current number of failed attempts
+    cur.execute('''
+        SELECT id, failed_attempts
+        FROM users_login
+        WHERE username = ?
+    ''', (name,))
+
+    user = cur.fetchone()
+
+    if user is None:
+        return
+
+    user_id = user[0]
+    failed_attempts = user[1] + 1
+
+    # Record the failed attempt
+    cur.execute('''
+        UPDATE users_login
+        SET failed_attempts = ?
+        WHERE id = ?
+    ''', (failed_attempts, user_id))
+
+    add_audit_log(
+        conn,
+        user_id=user_id,
+        admin_id=None,
+        action="LOGIN_FAILED",
+        description=f"Failed login attempt {failed_attempts}/3"
+    )
+
+    # Lock the account after the third failed attempt
+    if failed_attempts >= 3:
+        cur.execute('''
+            UPDATE users_login
+            SET locked = 1,
+                lockout_count = lockout_count + 1
+            WHERE id = ?
+        ''', (user_id,))
+
+        add_audit_log(
+            conn,
+            user_id=user_id,
+            admin_id=None,
+            action="ACCOUNT_LOCKED",
+            description="Account locked after 3 failed login attempts"
+        )
+
     conn.commit()
 
-    sql = 'SELECT failed_attempts FROM users_login WHERE username = ?'
-    param = (name,)
-    cur.execute(sql, param)
-    no_attempts = cur.fetchone()[0]
-    
-    if no_attempts >= 3:
-        sql = "UPDATE users_login SET  locked = 1, lockout_count = lockout_count + 1 WHERE username = ?"
-        param = (name,)
-        cur.execute(sql, param)
-        conn.commit()
-        print("Account locked after 3 failed attempts.")
+def record_successful_login(conn, name):
+    cur = conn.cursor()
 
+    cur.execute('''
+        SELECT id
+        FROM users_login
+        WHERE username = ?
+    ''', (name,))
+
+    user = cur.fetchone()
+
+    if user is None:
+        return
+
+    user_id = user[0]
+
+    cur.execute('''
+        UPDATE users_login
+        SET failed_attempts = 0,
+            last_login_time = ?
+        WHERE id = ?
+    ''', (datetime.now().isoformat(), user_id))
+
+    add_audit_log(
+        conn,
+        user_id=user_id,
+        admin_id=None,
+        action="LOGIN_SUCCESS",
+        description="User successfully logged in"
+    )
+
+    conn.commit()
+
+def record_blocked_login(conn, name):
+    cur = conn.cursor()
+
+    cur.execute('''
+        SELECT id
+        FROM users_login
+        WHERE username = ?
+    ''', (name,))
+
+    user = cur.fetchone()
+
+    if user is None:
+        return
+
+    user_id = user[0]
+
+    add_audit_log(
+        conn,
+        user_id=user_id,
+        admin_id=None,
+        action="LOGIN_BLOCKED",
+        description="Login attempt blocked because the account is locked"
+    )
+    
 #checks if the username is unique
 def is_username_available(conn, name):
     """Checks if the username already exists in the db"""
@@ -271,3 +361,119 @@ def get_login_stats(conn, name):
         return {"lockout_count": result[0], "last_login_time" : result[1]}
     return None
 
+def add_audit_log(conn, user_id, admin_id, action, description):
+    cur = conn.cursor()
+
+    sql = '''
+        INSERT INTO audit_log (
+            user_id,
+            admin_id,
+            action,
+            description
+        )
+        VALUES (?, ?, ?, ?)
+    '''
+
+    cur.execute(
+        sql,
+        (user_id, admin_id, action, description)
+    )
+
+    conn.commit()
+
+
+def get_audit_logs(conn, days=7):
+    cur = conn.cursor()
+
+    sql = '''
+        SELECT
+            a.id,
+            a.user_id,
+            a.admin_id,
+            a.action,
+            a.description,
+            a.timestamp,
+            u.username AS affected_user,
+            admin.username AS administrator
+        FROM audit_log a
+        LEFT JOIN users_login u
+            ON a.user_id = u.id
+        LEFT JOIN users_login admin
+            ON a.admin_id = admin.id
+        WHERE a.timestamp >= datetime('now', ?)
+        ORDER BY a.timestamp DESC
+    '''
+
+    cur.execute(sql, (f'-{days} days',))
+
+    return cur.fetchall()
+
+def lock_user(conn, user_id, admin_id):
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT locked FROM users_login WHERE id = ?',
+        (user_id,)
+    )
+
+    user = cur.fetchone()
+
+    if user is None:
+        return False
+
+    if user[0]:
+        return False
+
+    cur.execute('''
+        UPDATE users_login
+        SET locked = 1,
+            lockout_count = lockout_count + 1
+        WHERE id = ?
+    ''', (user_id,))
+
+    add_audit_log(
+        conn,
+        user_id=user_id,
+        admin_id=admin_id,
+        action="ACCOUNT_LOCKED",
+        description="Account manually locked by administrator"
+    )
+
+    conn.commit()
+
+    return True
+
+def unlock_user(conn, user_id, admin_id):
+    cur = conn.cursor()
+
+    cur.execute(
+        'SELECT locked FROM users_login WHERE id = ?',
+        (user_id,)
+    )
+
+    user = cur.fetchone()
+
+    if user is None:
+        return False
+
+    if not user[0]:
+        return False
+
+    cur.execute('''
+        UPDATE users_login
+        SET locked = 0,
+            failed_attempts = 0
+        WHERE id = ?
+    ''', (user_id,))
+
+    add_audit_log(
+        conn,
+        user_id=user_id,
+        admin_id=admin_id,
+        action="ACCOUNT_UNLOCKED",
+        description="Account manually unlocked by administrator"
+    )
+
+    conn.commit()
+
+    return True
