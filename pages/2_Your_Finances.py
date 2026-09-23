@@ -65,6 +65,7 @@ single_fixed_total = rent + insurance + utilities + school_childcare + transport
 st.divider()
 
 # ---------- Loans (list) ----------
+# ---------- Loans (list) ----------
 st.subheader("🏦 Loans")
 st.caption("Add each loan you're currently repaying — e.g. Car, House.")
 
@@ -113,9 +114,9 @@ with st.expander("➕ Add a loan"):
 
 loans_total = sum(loan["payment"] for loan in st.session_state["loans"])
 st.metric("Total loan repayments", f"{loans_total:,.0f}")
-
 st.divider()
 
+# ---------- Subscriptions (list) ----------
 # ---------- Subscriptions (list) ----------
 st.subheader("📺 Subscriptions")
 st.caption("Add each subscription — e.g. Netflix, Gym.")

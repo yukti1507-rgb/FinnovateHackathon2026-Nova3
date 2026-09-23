@@ -4,16 +4,16 @@ from email.message import EmailMessage
 import random
 import time
 
-Email_address = "ilafoogooa@gmail.com"
-Email_password = "ltqj apmw cgyt zrqe"
 
 def send_resetpass_email(to_email, token):
     """"Email sent to user to reset their password"""
     #st.secrets was previously used because the gmail account generates a password to be able to send emails to user 
     # sender_email = st.secrets["EMAIL_ADDRESS"]
     # sender_password = st.secrets["EMAIL_APP_PASSWORD"]
-    sender_email = Email_address
-    sender_password = Email_password
+
+
+    sender_email = st.secrets["EMAIL_ADDRESS"]
+    sender_password = st.secrets["EMAIL_APP_PASSWORD"]      
 
     reset_link = f"http://localhost:8501/?token={token}"
 
@@ -40,10 +40,9 @@ def generate_OTP():
     return OTP
     
 def send_OTP_email(to_email, otp):
-    # sender_email = st.secrets["EMAIL_ADDRESS"]
-    # sender_password = st.secrets["EMAIL_APP_PASSWORD"]
-    sender_email = Email_address
-    sender_password = Email_password
+
+    sender_email = st.secrets["EMAIL_ADDRESS"]
+    sender_password = st.secrets["EMAIL_APP_PASSWORD"]
 
     msg = EmailMessage()
     msg["Subject"] = "Login to App"
