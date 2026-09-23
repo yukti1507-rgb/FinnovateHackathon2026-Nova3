@@ -79,7 +79,8 @@ single_fixed_total = rent + insurance + utilities + school_childcare + transport
 
 st.divider()
 
-# ---------- st.subheader(t("🏦 Loans"))
+# ---------- Loans (list) ----------
+st.subheader(t("🏦 Loans"))
 st.caption(t("Add each loan you're currently repaying — e.g. Car, House."))
 
 for i, loan in enumerate(st.session_state["loans"]):
@@ -174,7 +175,10 @@ with st.expander(t("➕ Add a subscription")):
             st.session_state["subscriptions"].append({
                 "name": new_sub_name, "amount": new_sub_amount, "type": "Need" if new_sub_is_need else "Want"
             })
-            st.success(f"{t('Added')} '{new_sub_name}'!")subscriptions_total = sum(sub["amount"] for sub in st.session_state["subscriptions"])
+            st.success(f"{t('Added')} '{new_sub_name}'!")
+            st.rerun()
+
+subscriptions_total = sum(sub["amount"] for sub in st.session_state["subscriptions"])
 st.metric(t("Total subscriptions"), f"{subscriptions_total:,.0f}")
 
 st.divider()

@@ -74,45 +74,6 @@ with tab1:
         st.session_state["existing_loan_payment"] = monthly_payment
         st.session_state["loan2_debt"] = monthly_payment
 
-<<<<<<< HEAD
-=======
-        if st.button(t("Calculate repayment time"), type="primary"):
-            if principal <= 0:
-                st.error(t("Loan amount must be greater than 0."))
-            elif monthly_payment <= 0:
-                st.error(t("Monthly payment must be greater than 0."))
-            elif monthly_payment > principal:
-                st.info(f"ℹ️ {t('Since your payment is more than what you owe, you would pay this off in 1 month.')}")
-            else:
-                months = months_to_repay(principal, annual_rate, monthly_payment)
-
-                if months is None:
-                    st.error(t("⚠️ Your payment doesn't cover the interest — at this rate, you'll never pay off this loan."))
-        else:
-                years = months / 12
-                st.success(f"✅ {t('You will repay your loan in')} **{months} {t('months')}** (~{years:.1f} {t('years')})")
-
-                schedule = amortisation_schedule(principal, annual_rate, monthly_payment, months)
-
-                interest_data = [m["interest_portion"] for m in schedule]
-                principal_data = [m["principal_portion"] for m in schedule]
-
-                st.subheader(t("📊 Interest vs. Principal Over Time"))
-
-                chart_df = pd.DataFrame({
-                    t("Interest paid (Rs)"): interest_data,
-                    t("Principal paid (Rs)"): principal_data
-                }, index=[f"{t('Month')} {m}" for m in range(1, len(interest_data) + 1)])
-
-                st.line_chart(chart_df)
-                st.caption(f"{t('Showing the full')} {len(interest_data)}-{t('month repayment period, from month 1 to month')} {len(interest_data)}.")
-    else:
-        st.session_state["existing_loan_payment"] = 0.0
-        st.session_state["loan2_debt"] = 0.0
-        st.info(t("You currently are not repaying a loan."))
-
->>>>>>> b25eb482d50667987e72baded72e7c603a8fa43e
-
 with tab2:
     st.subheader(t("How much can I realistically borrow?"))
 
