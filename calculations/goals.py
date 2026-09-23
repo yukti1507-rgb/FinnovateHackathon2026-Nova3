@@ -38,27 +38,90 @@ def will_reach_goal(goal_amount, current_savings, monthly_contribution, annual_r
 
 
 def check_all_goals(savings_history, goals):
-    """
-    Checks each goal against the same savings projection.
-    goals = [{"name": ..., "amount": ..., "years": ...}, ...]
-    """
     results = []
     for goal in goals:
         goal_months = goal["years"] * 12
+        real_target = inflation_adjusted_target(goal["amount"], goal["years"])  # NEW
         reached_month = None
 
         for entry in savings_history:
             if entry["month"] > goal_months:
                 break
-            if entry["balance"] >= goal["amount"]:
+            if entry["balance"] >= real_target:  
                 reached_month = entry["month"]
                 break
 
         results.append({
             "name": goal["name"],
             "amount": goal["amount"],
+            "real_target": real_target,  # pass this along for display use
             "deadline_months": goal_months,
             "reached": reached_month is not None,
             "month_reached": reached_month
         })
     return results
+
+def months_to_reach_at_current_rate(current_savings, monthly_savings, annual_rate, target_amount, max_months=600):
+    """
+    Projects savings forward (ignoring any deadline) to find out how
+    long it would ACTUALLY take to reach the goal at their current rate.
+    Returns the month number, or None if it's not reachable within
+    max_months (50 years) — e.g. if monthly_savings is 0 or too low.
+    """
+    from calculations.savings import project_savings
+
+    history = project_savings(current_savings, monthly_savings, annual_rate, max_months)
+
+    for entry in history:
+        if entry["balance"] >= target_amount:
+            return entry["month"]
+
+    return None  # not reachable within 50 years at this rate
+
+def calculate_goal_gap(current_savings, monthly_savings, annual_rate, deadline_months, target_amount):
+    """
+    Projects savings up to the goal's deadline (not open-ended) and
+    calculates the shortfall against the target.
+    """
+    from calculations.savings import project_savings
+
+    history = project_savings(current_savings, monthly_savings, annual_rate, deadline_months)
+    savings_by_deadline = history[-1]["balance"] if history else current_savings
+
+    gap = target_amount - savings_by_deadline
+    return {
+        "savings_by_deadline": round(savings_by_deadline, 2),
+        "gap": round(max(gap, 0), 2)
+    }
+
+def inflation_adjusted_target(target_amount, years, inflation_rate=0.05):
+    """
+    Calculates what a goal will actually cost by the time the user
+    reaches their deadline, accounting for price inflation — not
+    just today's price.
+    """
+    return round(target_amount * (1 + inflation_rate) ** years, 2)
+
+def inflating_target_over_time(target_amount, deadline_months, inflation_rate=0.05):
+    """
+    Returns the inflating target value for EVERY month up to the
+    deadline, so it can be plotted as a rising line on a chart
+    alongside the savings balance line.
+    """
+    monthly_inflation = (1 + inflation_rate) ** (1/12) - 1  # convert annual rate to monthly
+    return [
+        round(target_amount * (1 + monthly_inflation) ** month, 2)
+        for month in range(1, deadline_months + 1)
+    ]
+
+
+
+
+
+
+
+
+
+
+
+

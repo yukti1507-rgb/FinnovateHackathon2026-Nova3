@@ -6,6 +6,8 @@ from main import password_requirements
 #users have not been decided yet - do necessary changes when decided
 from app_model.users import set_token, get_user_by_token, reset_password, is_username_available, add_user, update_login_attempts, get_user, reset_login, is_email_available, get_email, get_role
 
+from calculations.language import show_language_picker, t
+
 from app_model.schema import create_user_table, create_user_profile,alter_users_login_table
 from registration_and_login.send_email_to_user import send_resetpass_email, OTP_initialisation, OTP_verification
 
@@ -27,6 +29,8 @@ st.set_page_config(
     page_icon = "💡",
     layout = "wide"
     )
+
+show_language_picker()
 
 # --- minor CSS polish for the auth panel ---
 st.markdown(
