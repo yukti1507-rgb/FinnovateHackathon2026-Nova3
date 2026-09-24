@@ -4,7 +4,6 @@ from email.message import EmailMessage
 import random
 import time
 
-
 def send_resetpass_email(to_email, token):
     """"Email sent to user to reset their password"""
     #st.secrets was previously used because the gmail account generates a password to be able to send emails to user 
@@ -31,6 +30,7 @@ def send_resetpass_email(to_email, token):
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
+        st.session_state["email_error"] = f"{type(e).__name__}: {e}"
         return False
     
 def generate_OTP():
@@ -57,7 +57,8 @@ def send_OTP_email(to_email, otp):
             smtp.send_message(msg)
         return True
     except Exception as e:
-        print(f"Failed to send email: {e}")
+        print(f"Failed to send email: {type(e).__name__}: {e}")
+        st.session_state["email_error"] = f"{type(e).__name__}: {e}"
         return False
 
 def OTP_initialisation(user_email):

@@ -1,12 +1,17 @@
 import streamlit as st
-import sqlite3
 
 def display_avatar(conn, username):
     cur = conn.cursor()
-    sql = 'SELECT avatar FROM users WHERE username = ?'
+    sql = '''
+        SELECT p.avatar
+        FROM user_profile p
+        JOIN users_login u ON p.user_id = u.id
+        WHERE u.username = ?
+    '''
     param = (username,)
     cur.execute(sql, param)
-    chosen_avatar = cur.fetchone()[0]
+    result = cur.fetchone()
+    chosen_avatar = result[0] if result else None
 
     if chosen_avatar:
         st.logo(chosen_avatar, size = 'large')

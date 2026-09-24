@@ -1,35 +1,59 @@
-import streamlit as st
 import string
-
+import streamlit as st
+import os 
 from app_model.db import get_connection
-from app_model.schema import create_audit_table
 
-def profile_icon():
-    # Top bar layout: left empty, right for profile
-    top_col1, top_col2 = st.columns([9, 1])  # adjust ratio for spacing
+conn= get_connection()
+def password_strength(password):
+    score = 0
+    length = len(password)
 
-    with top_col1:
-        st.empty()  # keeps left side blank
+    upper_case = any(c.isupper() for c in password)
+    lower_case = any(c.islower() for c in password)
+    special = any(c in string.punctuation for c in password)
+    digits = any(c.isdigit() for c in password)
 
-    with top_col2:
-        # Show profile picture if available, else fallback avatar
-        if "profile_pic" in st.session_state:
-            st.image(st.session_state["profile_pic"], width=40)
-        else:
-            st.image("https://www.w3schools.com/howto/img_avatar.png", width=40)
+    characters = [upper_case, lower_case, special, digits]
 
-        # Dropdown menu for actions
-        action = st.selectbox(
-            "👤",
-            ["Select...", "View Profile", "Logout"],
-            label_visibility="collapsed"
-        )
+    if length > 8:
+        score += 1
+    if length > 12:
+        score += 1
+    if length > 17:
+        score += 1
+    if length > 20:
+        score += 1
 
-        if action == "View Profile":
-            st.switch_page("pages/User_Profile.py")   # must exist in pages/
-        elif action == "Logout":
-            st.session_state["logged_in"] = False
-            st.switch_page("Home.py")
+    score += sum(characters) - 1
+
+    if score < 4:
+        return "Weak", score
+    elif score == 4:
+        return "Okay", score
+    elif 4 < score < 6:
+        return "Good", score
+    else:
+        return "Strong", score
+
+def feedback(password):
+    strength, score = password_strength(password)
+    feedback = f"Password strength: {strength} (Score: {score}/7)\n"
+
+    if score < 4:
+        feedback += "\nSuggestions to improve your password:\n"
+        if len(password) <= 8:
+            feedback += "- Make your password longer (more than 8 characters).\n"
+        if not any(c.isupper() for c in password):
+            feedback += "- Include uppercase letters.\n"
+        if not any(c.islower() for c in password):
+            feedback += "- Include lowercase letters.\n"
+        if not any(c in string.punctuation for c in password):
+            feedback += "- Add special characters (e.g., @, #, $).\n"
+        if not any(c.isdigit() for c in password):
+            feedback += "- Add numbers.\n"
+
+    return feedback
+
 
 def password_requirements(password: str):
     requirements = {
@@ -51,3 +75,63 @@ def password_requirements(password: str):
 
     if all(requirements.values()):
         st.success("✅ Your password meets all requirements.")
+
+def profile_icon():
+    top_col1, top_col2 = st.columns([9, 1])
+
+    with top_col1:
+        st.empty()
+
+    with top_col2:
+        username = st.session_state.get('username')
+        saved_pic_path = get_profile_pic(username) if username else None
+
+        if saved_pic_path and os.path.exists(saved_pic_path):
+            st.image(saved_pic_path, width=40)
+        else:
+            st.image("https://www.w3schools.com/howto/img_avatar.png", width=40)
+
+        action = st.selectbox(
+            "👤",
+            ["Select...", "View Profile", "Logout"],
+            label_visibility="collapsed"
+        )
+
+        if action == "View Profile":
+            st.switch_page("pages/1_Profile.py")
+        elif action == "Logout":
+            st.session_state["Logged_in"] = False
+            st.session_state["username"] = None
+            st.switch_page("Home.py")
+def migrate_add_profile_pic_column(conn):
+    cur = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE user_profile ADD COLUMN profile_pic TEXT;")
+        conn.commit()
+        print("Profile picture column added successfully.")
+    except Exception as e:
+        print("Migration skipped or failed:", e)
+
+migrate_add_profile_pic_column(conn)  # run once, then comment back out
+
+def update_profile_pic(username, file_path):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        UPDATE user_profile SET profile_pic = ?
+        WHERE user_id = (SELECT id FROM users_login WHERE username = ?)
+    ''', (file_path, username))
+    conn.commit()
+    conn.close()
+
+def get_profile_pic(username):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        SELECT p.profile_pic FROM user_profile p
+        JOIN users_login u ON p.user_id = u.id
+        WHERE u.username = ?
+    ''', (username,))
+    result = cur.fetchone()
+    conn.close()
+    return result[0] if result and result[0] else None
