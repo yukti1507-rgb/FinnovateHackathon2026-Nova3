@@ -5,6 +5,9 @@ def required_monthly_contribution(goal_amount, current_savings, annual_rate, mon
     Rearranged compound interest formula — solves for the monthly
     contribution needed to reach a goal by a deadline.
     """
+    if months is None or months <= 0:
+        return 0.0
+
     monthly_rate = annual_rate / 100 / 12
 
     if monthly_rate == 0:
@@ -22,12 +25,10 @@ def required_monthly_contribution(goal_amount, current_savings, annual_rate, mon
 
     return round(monthly_needed, 2)
 
-
 def will_reach_goal(goal_amount, current_savings, monthly_contribution, annual_rate, months):
     """
     Checks if a given savings plan reaches the goal in time, and if so, when.
     """
-
     history = project_savings(current_savings, monthly_contribution, annual_rate, months)
 
     for entry in history:
@@ -36,29 +37,69 @@ def will_reach_goal(goal_amount, current_savings, monthly_contribution, annual_r
 
     return {"reached": False, "month_reached": None}
 
-
 def check_all_goals(savings_history, goals):
-    results = []
-    for goal in goals:
-        goal_months = goal["years"] * 12
-        real_target = inflation_adjusted_target(goal["amount"], goal["years"])  # NEW
-        reached_month = None
+    """
+    Checks each goal against a shared savings history.
 
-        for entry in savings_history:
-            if entry["month"] > goal_months:
-                break
-            if entry["balance"] >= real_target:  
-                reached_month = entry["month"]
-                break
+    Prefer target_date-derived months_remaining/years_remaining.
+    Legacy goals may still have years only; this fallback is retained
+    only for compatibility with older records.
+    """
+    results = []
+
+    for goal in goals:
+        from calculations.goal_allocation import resolve_goal_deadline_months
+
+        goal_name = goal.get("name") or goal.get("goal_name") or "Goal"
+        goal_amount = goal.get("amount")
+        if goal_amount is None:
+            goal_amount = goal.get("target_amount")
+        if goal_amount is None:
+            goal_amount = 0
+
+        goal = {
+            **goal,
+            "name": goal_name,
+            "amount": goal_amount,
+            "goal_name": goal_name,
+            "target_amount": goal_amount,
+        }
+
+        goal_months = goal.get("months_remaining")
+        if goal_months is None:
+            goal_months = resolve_goal_deadline_months(goal)
+
+        goal_months = max(int(goal_months or 0), 0)
+
+        years_for_inflation = goal.get("years_remaining")
+        if years_for_inflation is None:
+            if goal.get("target_date") is not None:
+                years_for_inflation = (goal_months / 12) if goal_months else 0
+            else:
+                years_for_inflation = float(goal.get("years", 0) or 0)
+
+        if goal_months == 0:
+            real_target = inflation_adjusted_target(goal["amount"], years_for_inflation)
+            reached_month = 0 if savings_history and savings_history[-1]["balance"] >= real_target else None
+        else:
+            real_target = inflation_adjusted_target(goal["amount"], years_for_inflation)
+            reached_month = None
+            for entry in savings_history:
+                if entry["month"] > goal_months:
+                    break
+                if entry["balance"] >= real_target:
+                    reached_month = entry["month"]
+                    break
 
         results.append({
             "name": goal["name"],
             "amount": goal["amount"],
-            "real_target": real_target,  # pass this along for display use
+            "real_target": real_target,
             "deadline_months": goal_months,
             "reached": reached_month is not None,
             "month_reached": reached_month
         })
+
     return results
 
 def months_to_reach_at_current_rate(current_savings, monthly_savings, annual_rate, target_amount, max_months=600):
@@ -98,7 +139,9 @@ def inflation_adjusted_target(target_amount, years, inflation_rate=0.05):
     """
     Calculates what a goal will actually cost by the time the user
     reaches their deadline, accounting for price inflation — not
-    just today's price.
+    just today's price. `years` should be the CURRENT years
+    remaining until the deadline, not a static original duration --
+    callers should derive this fresh from target_date each time.
     """
     return round(target_amount * (1 + inflation_rate) ** years, 2)
 
@@ -149,13 +192,3 @@ def find_best_cuts(user_data, goals_status, cut_percent=0.5):
 
     suggestions.sort(key=lambda s: s["months_saved"], reverse=True)
     return suggestions
-
-
-
-
-
-
-
-
-
-

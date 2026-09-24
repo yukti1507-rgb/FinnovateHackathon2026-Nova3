@@ -1,6 +1,12 @@
 import streamlit as st
+import sqlite3
+
 
 def display_avatar(conn, username):
+    if not username:
+        st.logo("👤", size='large')
+        return None
+
     cur = conn.cursor()
     sql = '''
         SELECT p.avatar
@@ -8,13 +14,12 @@ def display_avatar(conn, username):
         JOIN users_login u ON p.user_id = u.id
         WHERE u.username = ?
     '''
-    param = (username,)
-    cur.execute(sql, param)
-    result = cur.fetchone()
-    chosen_avatar = result[0] if result else None
+    cur.execute(sql, (username,))
+    row = cur.fetchone()
+    chosen_avatar = row[0] if row and row[0] else None
 
     if chosen_avatar:
-        st.logo(chosen_avatar, size = 'large')
+        st.logo(chosen_avatar, size='large')
     else:
-        st.logo("👤", size = 'large')
+        st.logo("👤", size='large')
     return chosen_avatar

@@ -60,6 +60,9 @@ def alter_user_profile_table(conn):
             'ALTER TABLE user_profile ADD COLUMN personalisation_enabled BOOLEAN DEFAULT 0'
         )
 
+    if 'profile_pic' not in existing_cols:
+        cur.execute('ALTER TABLE user_profile ADD COLUMN profile_pic TEXT')
+
     conn.commit()
 
 def create_audit_table(conn):

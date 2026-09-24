@@ -3,9 +3,7 @@ from groq import Groq
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-language_options = {"English": "en", "Français": "fr", "Kreol Morisien": "cr"}
-
-LANG_NAMES = {"en": "English", "fr": "French", "cr": "Kreol Morisien (Mauritian Creole)"}
+language_options = {"English": "en", "Français": "fr"}
 
 
 @st.cache_data(show_spinner=False)
@@ -25,7 +23,7 @@ def translate_text(text, lang_name):
 
 def t(text):
     lang = st.session_state.get("language", "en")
-    lang_name = LANG_NAMES.get(lang, "English")
+    lang_name = {"en": "English", "fr": "French"}.get(lang, "English")
     return translate_text(text, lang_name)
 
 
@@ -35,7 +33,7 @@ def show_language_picker():
 
     with st.sidebar:
         choice = st.selectbox(
-            "🌐 Language / Langue / Langaz",
+            "🌐 Language / Langue",
             options=list(language_options.keys()),
             index=list(language_options.values()).index(st.session_state["language"])
         )

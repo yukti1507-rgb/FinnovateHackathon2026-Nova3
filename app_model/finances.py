@@ -1,8 +1,8 @@
 from app_model.money import (
     encrypt_amount,
-    decrypt_amount_decimal
+    decrypt_amount_decimal,
+    to_cents
 )
-
 
 # ============================================================
 # INCOME
@@ -12,15 +12,11 @@ def add_income(conn, user_id, source, amount, currency="MUR",
                frequency="monthly"):
     """
     Adds an income source for a user.
-
     The amount is converted to cents and encrypted
     before being stored in the database.
     """
-
     cur = conn.cursor()
-
     encrypted_amount = encrypt_amount(amount)
-
     cur.execute(
         """
         INSERT INTO income (
@@ -32,29 +28,17 @@ def add_income(conn, user_id, source, amount, currency="MUR",
         )
         VALUES (?, ?, ?, ?, ?)
         """,
-        (
-            user_id,
-            source,
-            currency,
-            encrypted_amount,
-            frequency
-        )
+        (user_id, source, currency, encrypted_amount, frequency)
     )
-
     conn.commit()
-
     return cur.lastrowid
-
 
 def get_income(conn, user_id):
     """
     Retrieves all income sources belonging to a user.
-
     Returns decrypted monetary values.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT
@@ -69,11 +53,8 @@ def get_income(conn, user_id):
         """,
         (user_id,)
     )
-
     rows = cur.fetchall()
-
     income = []
-
     for row in rows:
         income.append({
             "id": row[0],
@@ -82,23 +63,17 @@ def get_income(conn, user_id):
             "amount": decrypt_amount_decimal(row[3]),
             "frequency": row[4]
         })
-
     return income
-
 
 def update_income(conn, income_id, user_id, source, amount,
                    currency="MUR", frequency="monthly"):
     """
     Updates an existing income record.
-
     user_id is included to ensure that a user can only
     update their own financial record.
     """
-
     encrypted_amount = encrypt_amount(amount)
-
     cur = conn.cursor()
-
     cur.execute(
         """
         UPDATE income
@@ -110,28 +85,16 @@ def update_income(conn, income_id, user_id, source, amount,
         WHERE id = ?
         AND user_id = ?
         """,
-        (
-            source,
-            currency,
-            encrypted_amount,
-            frequency,
-            income_id,
-            user_id
-        )
+        (source, currency, encrypted_amount, frequency, income_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 def delete_income(conn, income_id, user_id):
     """
     Deletes an income record belonging to the user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         DELETE FROM income
@@ -140,35 +103,25 @@ def delete_income(conn, income_id, user_id):
         """,
         (income_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
 
 def to_monthly_cents(amount_cents, frequency):
     """
     Converts an amount stored as integer cents
     into an estimated monthly amount in integer cents.
-
     All calculations remain in integer cents.
     """
-
     if frequency == "daily":
         return (amount_cents * 365 + 6) // 12
-
     elif frequency == "weekly":
         return (amount_cents * 52 + 6) // 12
-
     elif frequency == "monthly":
         return amount_cents
-
     elif frequency == "yearly":
         return (amount_cents + 6) // 12
-
     else:
-        raise ValueError(
-            f"Unsupported frequency: {frequency}"
-        )
+        raise ValueError(f"Unsupported frequency: {frequency}")
 
 # ============================================================
 # EXPENSES
@@ -186,21 +139,15 @@ def add_expense(
 ):
     """
     Adds an expense for a user.
-
     expense_type should be:
         Need
         Want
     """
-
     if expense_type not in ("Need", "Want"):
-        raise ValueError(
-            "expense_type must be either 'Need' or 'Want'."
-        )
+        raise ValueError("expense_type must be either 'Need' or 'Want'.")
 
     encrypted_amount = encrypt_amount(amount)
-
     cur = conn.cursor()
-
     cur.execute(
         """
         INSERT INTO expenses (
@@ -214,31 +161,17 @@ def add_expense(
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (
-            user_id,
-            category,
-            name,
-            currency,
-            encrypted_amount,
-            frequency,
-            expense_type
-        )
+        (user_id, category, name, currency, encrypted_amount, frequency, expense_type)
     )
-
     conn.commit()
-
     return cur.lastrowid
-
 
 def get_expenses(conn, user_id):
     """
     Retrieves all expenses belonging to a user.
-
     Monetary values are decrypted before being returned.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT
@@ -255,11 +188,8 @@ def get_expenses(conn, user_id):
         """,
         (user_id,)
     )
-
     rows = cur.fetchall()
-
     expenses = []
-
     for row in rows:
         expenses.append({
             "id": row[0],
@@ -270,9 +200,7 @@ def get_expenses(conn, user_id):
             "frequency": row[5],
             "expense_type": row[6]
         })
-
     return expenses
-
 
 def update_expense(
     conn,
@@ -288,16 +216,11 @@ def update_expense(
     """
     Updates an existing expense belonging to the user.
     """
-
     if expense_type not in ("Need", "Want"):
-        raise ValueError(
-            "expense_type must be either 'Need' or 'Want'."
-        )
+        raise ValueError("expense_type must be either 'Need' or 'Want'.")
 
     encrypted_amount = encrypt_amount(amount)
-
     cur = conn.cursor()
-
     cur.execute(
         """
         UPDATE expenses
@@ -311,30 +234,16 @@ def update_expense(
         WHERE id = ?
         AND user_id = ?
         """,
-        (
-            category,
-            name,
-            currency,
-            encrypted_amount,
-            frequency,
-            expense_type,
-            expense_id,
-            user_id
-        )
+        (category, name, currency, encrypted_amount, frequency, expense_type, expense_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 def delete_expense(conn, expense_id, user_id):
     """
     Deletes an expense belonging to the user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         DELETE FROM expenses
@@ -343,11 +252,8 @@ def delete_expense(conn, expense_id, user_id):
         """,
         (expense_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 # ============================================================
 # SAVINGS
@@ -363,15 +269,12 @@ def add_or_update_savings(
 ):
     """
     Creates or updates the user's savings record.
-
     Each user can have only one savings record.
     """
-
     current_encrypted = encrypt_amount(current_savings)
     monthly_encrypted = encrypt_amount(monthly_savings)
 
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT id
@@ -380,7 +283,6 @@ def add_or_update_savings(
         """,
         (user_id,)
     )
-
     existing = cur.fetchone()
 
     if existing:
@@ -394,13 +296,7 @@ def add_or_update_savings(
                 currency = ?
             WHERE user_id = ?
             """,
-            (
-                current_encrypted,
-                monthly_encrypted,
-                savings_rate,
-                currency,
-                user_id
-            )
+            (current_encrypted, monthly_encrypted, savings_rate, currency, user_id)
         )
     else:
         cur.execute(
@@ -414,27 +310,16 @@ def add_or_update_savings(
             )
             VALUES (?, ?, ?, ?, ?)
             """,
-            (
-                user_id,
-                current_encrypted,
-                monthly_encrypted,
-                savings_rate,
-                currency
-            )
+            (user_id, current_encrypted, monthly_encrypted, savings_rate, currency)
         )
-
     conn.commit()
-
     return True
-
 
 def get_savings(conn, user_id):
     """
     Retrieves the user's savings information.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT
@@ -448,9 +333,7 @@ def get_savings(conn, user_id):
         """,
         (user_id,)
     )
-
     row = cur.fetchone()
-
     if row is None:
         return None
 
@@ -461,7 +344,6 @@ def get_savings(conn, user_id):
         "savings_rate": row[3],
         "currency": row[4]
     }
-
 
 # ============================================================
 # LOANS
@@ -478,16 +360,13 @@ def add_loan(
 ):
     """
     Adds a loan for a user.
-
     Principal and monthly payment are encrypted.
     Interest rate is not monetary, so it remains a REAL value.
     """
-
     principal_encrypted = encrypt_amount(principal)
     payment_encrypted = encrypt_amount(monthly_payment)
 
     cur = conn.cursor()
-
     cur.execute(
         """
         INSERT INTO loans (
@@ -500,28 +379,16 @@ def add_loan(
         )
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (
-            user_id,
-            name,
-            currency,
-            principal_encrypted,
-            interest_rate,
-            payment_encrypted
-        )
+        (user_id, name, currency, principal_encrypted, interest_rate, payment_encrypted)
     )
-
     conn.commit()
-
     return cur.lastrowid
-
 
 def get_loans(conn, user_id):
     """
     Retrieves all loans belonging to a user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT
@@ -537,11 +404,8 @@ def get_loans(conn, user_id):
         """,
         (user_id,)
     )
-
     rows = cur.fetchall()
-
     loans = []
-
     for row in rows:
         loans.append({
             "id": row[0],
@@ -551,9 +415,7 @@ def get_loans(conn, user_id):
             "interest_rate": row[4],
             "monthly_payment": decrypt_amount_decimal(row[5])
         })
-
     return loans
-
 
 def update_loan(
     conn,
@@ -568,12 +430,10 @@ def update_loan(
     """
     Updates a loan belonging to the user.
     """
-
     principal_encrypted = encrypt_amount(principal)
     payment_encrypted = encrypt_amount(monthly_payment)
 
     cur = conn.cursor()
-
     cur.execute(
         """
         UPDATE loans
@@ -586,29 +446,16 @@ def update_loan(
         WHERE id = ?
         AND user_id = ?
         """,
-        (
-            name,
-            currency,
-            principal_encrypted,
-            interest_rate,
-            payment_encrypted,
-            loan_id,
-            user_id
-        )
+        (name, currency, principal_encrypted, interest_rate, payment_encrypted, loan_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 def delete_loan(conn, loan_id, user_id):
     """
     Deletes a loan belonging to the user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         DELETE FROM loans
@@ -617,18 +464,11 @@ def delete_loan(conn, loan_id, user_id):
         """,
         (loan_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 # ============================================================
 # FINANCIAL GOALS
-# ============================================================
-
-# ============================================================
-# GOALS
 # ============================================================
 
 def add_goal(
@@ -644,29 +484,15 @@ def add_goal(
 ):
     """
     Adds a financial goal for a user.
-
     Monetary values are encrypted before being stored.
     """
+    if status not in ("in_progress", "achieved", "postponed"):
+        raise ValueError("Invalid goal status.")
 
-    if status not in (
-        "in_progress",
-        "achieved",
-        "postponed"
-    ):
-        raise ValueError(
-            "Invalid goal status."
-        )
-
-    target_encrypted = encrypt_amount(
-        target_amount
-    )
-
-    current_encrypted = encrypt_amount(
-        current_amount
-    )
+    target_encrypted = encrypt_amount(target_amount)
+    current_encrypted = encrypt_amount(current_amount)
 
     cur = conn.cursor()
-
     cur.execute(
         """
         INSERT INTO financial_goals (
@@ -681,30 +507,16 @@ def add_goal(
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (
-            user_id,
-            goal_name,
-            currency,
-            target_encrypted,
-            current_encrypted,
-            target_date,
-            priority,
-            status
-        )
+        (user_id, goal_name, currency, target_encrypted, current_encrypted, target_date, priority, status)
     )
-
     conn.commit()
-
     return cur.lastrowid
-
 
 def get_goals(conn, user_id):
     """
     Retrieves all financial goals belonging to a user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT
@@ -722,30 +534,20 @@ def get_goals(conn, user_id):
         """,
         (user_id,)
     )
-
     rows = cur.fetchall()
-
     goals = []
-
     for row in rows:
-
         goals.append({
             "id": row[0],
             "goal_name": row[1],
             "currency": row[2],
-            "target_amount": decrypt_amount_decimal(
-                row[3]
-            ),
-            "current_amount": decrypt_amount_decimal(
-                row[4]
-            ),
+            "target_amount": decrypt_amount_decimal(row[3]),
+            "current_amount": decrypt_amount_decimal(row[4]),
             "target_date": row[5],
             "priority": row[6],
             "status": row[7]
         })
-
     return goals
-
 
 def update_goal(
     conn,
@@ -762,26 +564,13 @@ def update_goal(
     """
     Updates a financial goal belonging to the user.
     """
+    if status not in ("in_progress", "achieved", "postponed"):
+        raise ValueError("Invalid goal status.")
 
-    if status not in (
-        "in_progress",
-        "achieved",
-        "postponed"
-    ):
-        raise ValueError(
-            "Invalid goal status."
-        )
-
-    target_encrypted = encrypt_amount(
-        target_amount
-    )
-
-    current_encrypted = encrypt_amount(
-        current_amount
-    )
+    target_encrypted = encrypt_amount(target_amount)
+    current_encrypted = encrypt_amount(current_amount)
 
     cur = conn.cursor()
-
     cur.execute(
         """
         UPDATE financial_goals
@@ -796,31 +585,16 @@ def update_goal(
         WHERE id = ?
         AND user_id = ?
         """,
-        (
-            goal_name,
-            currency,
-            target_encrypted,
-            current_encrypted,
-            target_date,
-            priority,
-            status,
-            goal_id,
-            user_id
-        )
+        (goal_name, currency, target_encrypted, current_encrypted, target_date, priority, status, goal_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 def delete_goal(conn, goal_id, user_id):
     """
     Deletes a financial goal belonging to the user.
     """
-
     cur = conn.cursor()
-
     cur.execute(
         """
         DELETE FROM financial_goals
@@ -829,10 +603,83 @@ def delete_goal(conn, goal_id, user_id):
         """,
         (goal_id, user_id)
     )
-
     conn.commit()
-
     return cur.rowcount > 0
+
+# ============================================================
+# SESSION DATA LOADER
+# ============================================================
+
+def load_user_financial_data(conn, user_id):
+    """
+    Loads everything needed to populate st.session_state after
+    login, in the exact shape run_full_simulation() and the
+    calculation pages (Dashboard, Loans, Finance Profile) expect.
+
+    This is the single place responsible for turning the
+    database's row-based storage into flat session_state values.
+    Call this once, right after a successful login.
+
+    Goals keep target_date as their only stored deadline fact --
+    "years"/"months remaining" are deliberately NOT computed here.
+    run_full_simulation() derives those fresh from target_date on
+    every simulation run, so nothing here can go stale between logins.
+    """
+    savings = get_savings(conn, user_id)
+
+    if savings is None:
+        current_savings = 0.0
+        monthly_savings = 0.0
+        savings_rate = 0.0
+    else:
+        current_savings = savings["current_savings"]
+        monthly_savings = savings["monthly_savings"]
+        savings_rate = savings["savings_rate"]
+
+    income_records = get_income(conn, user_id)
+    income_total = sum(
+        to_monthly_cents(to_cents(r["amount"]), r["frequency"])
+        for r in income_records
+    ) / 100
+
+    expense_records = get_expenses(conn, user_id)
+    expenses_total = sum(
+        to_monthly_cents(to_cents(r["amount"]), r["frequency"])
+        for r in expense_records
+    ) / 100
+
+    expense_categories = [
+        {"name": r["name"], "amount": r["amount"], "type": r["expense_type"]}
+        for r in expense_records
+    ]
+
+    loans = get_loans(conn, user_id)
+
+    goals_raw = get_goals(conn, user_id)
+    goals = [
+        {
+            "id": g["id"],
+            "name": g["goal_name"],
+            "amount": g["target_amount"],
+            "current_amount": g["current_amount"],
+            "target_date": g["target_date"],
+            "priority": g["priority"],
+            "status": g["status"],
+            "currency": g["currency"]
+        }
+        for g in goals_raw
+    ]
+
+    return {
+        "current_savings": current_savings,
+        "monthly_savings": monthly_savings,
+        "savings_rate": savings_rate,
+        "income": income_total,
+        "expenses": expenses_total,
+        "expense_categories": expense_categories,
+        "loans": loans,
+        "goals": goals
+    }
 
 # ============================================================
 # USER PROFILE
@@ -842,9 +689,7 @@ def get_user_profile(conn, user_id):
     """
     Retrieves the profile information for a user.
     """
-
     cur = conn.cursor()
-
     cur.execute("""
         SELECT
             user_id,
@@ -860,9 +705,7 @@ def get_user_profile(conn, user_id):
         FROM user_profile
         WHERE user_id = ?
     """, (user_id,))
-
     row = cur.fetchone()
-
     if row is None:
         return None
 
@@ -879,7 +722,6 @@ def get_user_profile(conn, user_id):
         "personalisation_enabled": bool(row[9])
     }
 
-
 def update_user_profile(
     conn,
     user_id,
@@ -894,44 +736,31 @@ def update_user_profile(
 ):
     """
     Updates the user's profile information.
-
     Only the supplied values are changed.
     Existing values are preserved when an argument is None.
     """
-
     current_profile = get_user_profile(conn, user_id)
-
     if current_profile is None:
-        raise ValueError(
-            "User profile does not exist."
-        )
+        raise ValueError("User profile does not exist.")
 
     if occupation is None:
         occupation = current_profile["occupation"]
-
     if financial_experience is None:
         financial_experience = current_profile["financial_experience"]
-
     if email is None:
         email = current_profile["email"]
-
     if avatar is None:
         avatar = current_profile["avatar"]
-
     if background_color is None:
         background_color = current_profile["background_color"]
-
     if living_situation is None:
         living_situation = current_profile["living_situation"]
-
     if dependants is None:
         dependants = current_profile["dependants"]
-
     if personalisation_enabled is None:
         personalisation_enabled = current_profile["personalisation_enabled"]
 
     cur = conn.cursor()
-
     cur.execute("""
         UPDATE user_profile
         SET
@@ -945,21 +774,11 @@ def update_user_profile(
             personalisation_enabled = ?
         WHERE user_id = ?
     """, (
-        email,
-        avatar,
-        background_color,
-        occupation,
-        financial_experience,
-        living_situation,
-        dependants,
-        int(personalisation_enabled),
-        user_id
+        email, avatar, background_color, occupation, financial_experience,
+        living_situation, dependants, int(personalisation_enabled), user_id
     ))
-
     conn.commit()
-
     return cur.rowcount > 0
-
 
 def create_user_profile_record(
     conn,
@@ -976,13 +795,10 @@ def create_user_profile_record(
 ):
     """
     Creates a profile record for a user.
-
     This is useful when a user has been created in users_login
     but does not yet have a corresponding profile.
     """
-
     cur = conn.cursor()
-
     cur.execute("""
         INSERT INTO user_profile (
             user_id,
@@ -998,35 +814,20 @@ def create_user_profile_record(
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        user_id,
-        email,
-        avatar,
-        background_color,
-        role,
-        occupation,
-        financial_experience,
-        living_situation,
-        dependants,
-        int(personalisation_enabled)
+        user_id, email, avatar, background_color, role, occupation,
+        financial_experience, living_situation, dependants, int(personalisation_enabled)
     ))
-
     conn.commit()
-
     return cur.lastrowid
-
 
 def delete_user_profile(conn, user_id):
     """
     Deletes a user's profile record.
     """
-
     cur = conn.cursor()
-
     cur.execute("""
         DELETE FROM user_profile
         WHERE user_id = ?
     """, (user_id,))
-
     conn.commit()
-
     return cur.rowcount > 0

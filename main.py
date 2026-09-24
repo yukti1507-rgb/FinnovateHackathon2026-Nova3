@@ -1,9 +1,9 @@
 import string
+import os
 import streamlit as st
-import os 
 from app_model.db import get_connection
 
-conn= get_connection()
+conn = get_connection()
 def password_strength(password):
     score = 0
     length = len(password)
@@ -91,28 +91,26 @@ def profile_icon():
         else:
             st.image("https://www.w3schools.com/howto/img_avatar.png", width=40)
 
+        is_admin = st.session_state.get("Admin", False)
+        menu_options = ["Select...", "View Profile", "Logout"]
+        if is_admin:
+            menu_options.insert(1, "Admin Dashboard")
+
         action = st.selectbox(
             "👤",
-            ["Select...", "View Profile", "Logout"],
+            menu_options,
             label_visibility="collapsed"
         )
 
         if action == "View Profile":
             st.switch_page("pages/1_Profile.py")
+        elif action == "Admin Dashboard":
+            st.switch_page("pages/_Admin.py")
         elif action == "Logout":
             st.session_state["Logged_in"] = False
             st.session_state["username"] = None
+            st.session_state["Admin"] = False
             st.switch_page("Home.py")
-def migrate_add_profile_pic_column(conn):
-    cur = conn.cursor()
-    try:
-        cur.execute("ALTER TABLE user_profile ADD COLUMN profile_pic TEXT;")
-        conn.commit()
-        print("Profile picture column added successfully.")
-    except Exception as e:
-        print("Migration skipped or failed:", e)
-
-migrate_add_profile_pic_column(conn)  # run once, then comment back out
 
 def update_profile_pic(username, file_path):
     conn = get_connection()

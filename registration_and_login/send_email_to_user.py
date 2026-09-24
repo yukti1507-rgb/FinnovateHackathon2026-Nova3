@@ -4,6 +4,7 @@ from email.message import EmailMessage
 import random
 import time
 
+
 def send_resetpass_email(to_email, token):
     """"Email sent to user to reset their password"""
     #st.secrets was previously used because the gmail account generates a password to be able to send emails to user 
@@ -30,7 +31,6 @@ def send_resetpass_email(to_email, token):
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
-        st.session_state["email_error"] = f"{type(e).__name__}: {e}"
         return False
     
 def generate_OTP():
@@ -57,54 +57,80 @@ def send_OTP_email(to_email, otp):
             smtp.send_message(msg)
         return True
     except Exception as e:
-        print(f"Failed to send email: {type(e).__name__}: {e}")
-        st.session_state["email_error"] = f"{type(e).__name__}: {e}"
+        print(f"Failed to send email: {e}")
         return False
+
+def invalidate_otp_state(keep_flow_state=False):
+    keys = [
+        "otp_code",
+        "otp_email",
+        "otp_expires_at",
+        "otp_attempts",
+        "awaiting_otp",
+        "pending_username",
+        "pending_new_hash",
+        "otp_verified",
+        "otp_reason",
+        "account_is_locked",
+        "locked_username",
+    ]
+
+    if keep_flow_state:
+        keys = [key for key in keys if key not in {"pending_username", "otp_reason", "account_is_locked", "locked_username"}]
+
+    for key in keys:
+        st.session_state.pop(key, None)
+
 
 def OTP_initialisation(user_email):
     """ Sending the user the email with OTP """
-    #calling the otp generation function
     otp = generate_OTP()
     st.session_state["otp_code"] = otp
     st.session_state["otp_email"] = user_email
-    #otp code has to expire after 5 minutes
-    st.session_state["otp_expires_at"] = time.time() + 5 * 60  
+    st.session_state["otp_expires_at"] = time.time() + 5 * 60
     st.session_state["otp_attempts"] = 0
-    #calling the send_OTP_email along with the otp to the users email
     return send_OTP_email(user_email, otp)
+
 
 def OTP_verification(user_input):
     """ Checks if the OTP entered is the one that was sent to user"""
-    stripped_input = user_input.strip()
+    if user_input is None:
+        return False, "Please enter the 6-digit code."
+
+    stripped_input = str(user_input).strip()
+    if not stripped_input:
+        return False, "Please enter the 6-digit code."
     if not stripped_input.isdigit():
-        message = "Only integers should be entered"
-        return False, message
-    elif len(stripped_input) != 6:
-        message = "Otp should be 6 digits"
-        return False, message
-    elif "otp_code" not in st.session_state:
-        message = "No otp was generated"
-        return False, message
-    elif time.time() > float(st.session_state["otp_expires_at"]):
-        message = "OTP has expired"
-        return False, message
-    st.session_state["otp_attempts"] += 1
-    if st.session_state["otp_attempts"] > 3:
-        message = "Wrong otp has been entered too many times. Please request another otp"
-        return False, message
-    #remove white space before checking if it is the same as the otp code
-    #.strip() returns a string so we have to force a type cast for the session state
-    if stripped_input == str(st.session_state["otp_code"]):
-        #resetting the session states
-        st.session_state["otp_code"] = None
-        st.session_state["otp_email"] = None
-        st.session_state["otp_expires_at"] = None
-        st.session_state["otp_attempts"] = 0
-        message = "Verified"
-        return True, message
-    else:
-        message = "Incorrect code. Please try again."
-        return False, message
+        return False, "Only integers should be entered."
+    if len(stripped_input) != 6:
+        return False, "OTP should be 6 digits."
+
+    otp_code = st.session_state.get("otp_code")
+    otp_expires_at = st.session_state.get("otp_expires_at")
+
+    if otp_code is None:
+        invalidate_otp_state()
+        return False, "No OTP was generated. Please request a new code."
+    if otp_expires_at is None or time.time() > float(otp_expires_at):
+        invalidate_otp_state()
+        return False, "OTP has expired. Please request a new code."
+
+    attempts = int(st.session_state.get("otp_attempts", 0)) + 1
+    st.session_state["otp_attempts"] = attempts
+
+    if attempts > 3:
+        invalidate_otp_state()
+        return False, "Wrong OTP entered too many times. Please request a new code."
+
+    if stripped_input == str(otp_code):
+        # Successful verification must keep the flow context needed by the
+        # next step (for example, locked-account recovery needs the username
+        # to reset the password before finishing the login). We clear the OTP
+        # artefacts but preserve the username/route metadata for the caller.
+        invalidate_otp_state(keep_flow_state=True)
+        return True, "Verified"
+
+    return False, "Incorrect code. Please try again."
 
 
 def main():

@@ -1,7 +1,7 @@
 import sqlite3
 
 def get_connection():
-    conn = sqlite3.connect('DATA/database.db', check_same_thread=False)
+    conn = sqlite3.connect('DATA/users.db', check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
